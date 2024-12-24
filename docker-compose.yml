@@ -1,0 +1,134 @@
+services:
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:latest
+    container_name: qbittorrent
+    hostname: qbittorrent
+    restart: unless-stopped
+    networks:
+      - media_server
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+      - WEBUI_PORT=${QBITTORRENT_UI_PORT}
+      - TORRENTING_PORT=${QBITTORRENT_TORRENT_PORT}
+    volumes:
+      - qbittorrent_data:/config
+      - ${DOWNLOADS_PATH}:/torrent_downloads
+    ports:
+      - ${QBITTORRENT_UI_PORT}:${QBITTORRENT_UI_PORT}
+      - ${QBITTORRENT_TORRENT_PORT}:${QBITTORRENT_TORRENT_PORT}
+      - ${QBITTORRENT_TORRENT_PORT}:${QBITTORRENT_TORRENT_PORT}/udp
+
+  jellyfin:
+    image: jellyfin/jellyfin:latest
+    container_name: jellyfin
+    hostname: jellyfin
+    restart: unless-stopped
+    networks:
+      - media_server
+    ports:
+      - ${JELLYFIN_PORT}:8096
+    volumes:
+      - jellyfin_data:/config
+      - jellyfin_data:/cache
+      - ${SHOWS_PATH}:/shows
+      - ${MOVIES_PATH}:/movies
+    devices:
+      - ${RENDER_DEVICE}:${RENDER_DEVICE}
+      - ${GPU_DEVICE}:${GPU_DEVICE}
+
+  prowlarr:
+    image: linuxserver/prowlarr:latest
+    container_name: prowlarr
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    hostname: prowlarr
+    restart: unless-stopped
+    mem_limit: ${PROWLARR_MEM_LIMIT}
+    networks:
+      - media_server
+    ports:
+      - ${PROWLARR_PORT}:9696
+    volumes:
+      - prowlarr_data:/config
+
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    container_name: sonarr
+    hostname: sonarr
+    restart: unless-stopped
+    mem_limit: ${SONARR_MEM_LIMIT}
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    networks:
+      - media_server
+    ports:
+      - ${SONARR_PORT}:8989
+    volumes:
+      - sonarr_data:/config
+      - ${SHOWS_PATH}:/shows
+      - ${DOWNLOADS_PATH}:/torrent_downloads
+    depends_on:
+      - prowlarr
+      - qbittorrent
+
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    container_name: radarr
+    hostname: radarr
+    restart: unless-stopped
+    mem_limit: ${RADARR_MEM_LIMIT}
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    networks:
+      - media_server
+    ports:
+      - ${RADARR_PORT}:7878
+    volumes:
+      - radarr_data:/config
+      - ${MOVIES_PATH}:/movies
+      - ${DOWNLOADS_PATH}:/torrent_downloads
+    depends_on:
+      - prowlarr
+      - qbittorrent
+
+  bazarr:
+    image: lscr.io/linuxserver/bazarr:latest
+    container_name: bazarr
+    hostname: bazarr
+    restart: unless-stopped
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    mem_limit: ${BAZARR_MEM_LIMIT}
+    networks:
+      - media_server
+    ports:
+      - ${BAZARR_PORT}:6767
+    volumes:
+      - bazarr_data:/config
+      - ${MOVIES_PATH}:/movies
+      - ${SHOWS_PATH}:/shows
+    depends_on:
+      - sonarr
+      - radarr
+
+volumes:
+  qbittorrent_data:
+  jellyfin_data:
+  prowlarr_data:
+  sonarr_data:
+  radarr_data:
+  bazarr_data:
+
+networks:
+  media_server:
+    external: true
