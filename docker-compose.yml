@@ -14,7 +14,7 @@ services:
       - TORRENTING_PORT=${QBITTORRENT_TORRENT_PORT}
     volumes:
       - qbittorrent_data:/config
-      - ${DOWNLOADS_PATH}:/torrent_downloads
+      - ${DOWNLOADS_PATH}:/downloads
     ports:
       - ${QBITTORRENT_UI_PORT}:${QBITTORRENT_UI_PORT}
       - ${QBITTORRENT_TORRENT_PORT}:${QBITTORRENT_TORRENT_PORT}
@@ -27,8 +27,15 @@ services:
     restart: unless-stopped
     networks:
       - media_server
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+      - JELLYFIN_PublishedServerUrl=jellyfin.nofiat.me
     ports:
       - ${JELLYFIN_PORT}:8096
+    group_add:
+      - ${RENDER_GROUP}
     volumes:
       - jellyfin_data:/config
       - jellyfin_data:/cache
@@ -36,7 +43,7 @@ services:
       - ${MOVIES_PATH}:/movies
     devices:
       - ${RENDER_DEVICE}:${RENDER_DEVICE}
-      - ${GPU_DEVICE}:${GPU_DEVICE}
+
 
   prowlarr:
     image: linuxserver/prowlarr:latest
@@ -72,7 +79,7 @@ services:
     volumes:
       - sonarr_data:/config
       - ${SHOWS_PATH}:/shows
-      - ${DOWNLOADS_PATH}:/torrent_downloads
+      - ${DOWNLOADS_PATH}:/downloads
     depends_on:
       - prowlarr
       - qbittorrent
@@ -94,7 +101,7 @@ services:
     volumes:
       - radarr_data:/config
       - ${MOVIES_PATH}:/movies
-      - ${DOWNLOADS_PATH}:/torrent_downloads
+      - ${DOWNLOADS_PATH}:/downloads
     depends_on:
       - prowlarr
       - qbittorrent
