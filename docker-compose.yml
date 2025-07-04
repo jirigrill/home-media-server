@@ -128,6 +128,28 @@ services:
       - sonarr
       - radarr
 
+  deleterr:
+    build: ./deleterr
+    container_name: deleterr
+    hostname: deleterr
+    restart: unless-stopped
+    environment:
+      - SONARR_URL=http://sonarr:8989
+      - RADARR_URL=http://radarr:7878
+      - SONARR_API_KEY=${SONARR_API_KEY}
+      - RADARR_API_KEY=${RADARR_API_KEY}
+      - DELETERR_PORT=${DELETERR_PORT}
+      - LOG_LEVEL=INFO
+    networks:
+      - media_server
+    ports:
+      - ${DELETERR_PORT}:5000
+    volumes:
+      - deleterr_data:/app/logs
+    depends_on:
+      - sonarr
+      - radarr
+
 volumes:
   qbittorrent_data:
   jellyfin_data:
@@ -135,6 +157,7 @@ volumes:
   sonarr_data:
   radarr_data:
   bazarr_data:
+  deleterr_data:
 
 networks:
   media_server:

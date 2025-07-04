@@ -1,0 +1,58 @@
+"""
+Radarr API service
+"""
+
+import logging
+from typing import Optional
+
+from models.media_item import MediaItem, MediaType
+from services.base_service import ArrService
+
+logger = logging.getLogger(__name__)
+
+
+class RadarrService(ArrService):
+    """Radarr API service for managing movies"""
+    
+    def test_connection(self) -> bool:
+        """Test Radarr API connection"""
+        response = self._make_request('system/status')
+        return response is not None
+    
+    def unmonitor_item(self, item: MediaItem) -> bool:
+        """Unmonitor a movie"""
+        if item.media_type != MediaType.MOVIE:
+            logger.warning(f"RadarrService can only unmonitor movies, got {item.media_type}")
+            return False
+        
+        try:
+            # Find movie
+            movie_id = self._find_movie(item.movie_title, item.year)
+            if not movie_id:
+                return False
+            
+            # Unmonitor movie
+            response = self._make_request(f'movie/{movie_id}', method='PUT', data={'monitored': False})
+            if response:
+                logger.info(f"Successfully unmonitored movie: {item}")
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Error unmonitoring movie {item}: {e}")
+            return False
+    
+    def _find_movie(self, movie_title: str, year: Optional[int] = None) -> Optional[int]:
+        """Find movie ID by title and optional year"""
+        response = self._make_request('movie')
+        if not response:
+            return None
+        
+        movies = response.json()
+        for movie in movies:
+            if movie['title'].lower() == movie_title.lower():
+                if year is None or movie.get('year') == year:
+                    logger.debug(f"Found movie '{movie_title}' with ID {movie['id']}")
+                    return movie['id']
+        
+        logger.warning(f"Movie '{movie_title}' not found in Radarr")
+        return None
