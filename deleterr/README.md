@@ -30,5 +30,5 @@ Configure via environment variables:
 ## Usage
 
 1. Configure Jellyfin webhook to point to `http://deleterr:5000/delete`
-2. Enable "Item Removed" event in Jellyfin webhook settings
+2. Enable "Item Deleted" event in Jellyfin webhook settings
 3. When content is deleted from Jellyfin, it will be automatically unmonitored in Sonarr/Radarr
