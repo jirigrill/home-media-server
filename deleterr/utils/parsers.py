@@ -80,10 +80,18 @@ class MediaParser:
                 logger.warning("No movie title in webhook data")
                 return None
             
+            # Convert year to int if it's a string
+            parsed_year = None
+            if year:
+                try:
+                    parsed_year = int(year)
+                except (ValueError, TypeError):
+                    logger.warning(f"Invalid year format: {year}")
+            
             return MediaItem(
                 media_type=MediaType.MOVIE,
                 title=movie_title,
-                year=year
+                year=parsed_year
             )
         
         except Exception as e:

@@ -31,8 +31,16 @@ class RadarrService(ArrService):
             if not movie_id:
                 return False
             
-            # Unmonitor movie
-            response = self._make_request(f'movie/{movie_id}', method='PUT', data={'monitored': False})
+            # Get the full movie object first
+            movie_response = self._make_request(f'movie/{movie_id}')
+            if not movie_response:
+                return False
+            
+            movie_data = movie_response.json()
+            movie_data['monitored'] = False
+            
+            # Update the movie with monitored=False
+            response = self._make_request(f'movie/{movie_id}', method='PUT', data=movie_data)
             if response:
                 logger.info(f"Successfully unmonitored movie: {item}")
                 return True
@@ -48,11 +56,35 @@ class RadarrService(ArrService):
             return None
         
         movies = response.json()
+        
+        # Debug: Log available movies for troubleshooting
+        logger.debug(f"Found {len(movies)} movies in Radarr, looking for '{movie_title}' (year: {year})")
+        for movie in movies[:5]:  # Log first 5 movies for debugging
+            logger.debug(f"Available movie: '{movie['title']}' ({movie.get('year', 'No year')})")
+        
+        # Try exact match first
         for movie in movies:
             if movie['title'].lower() == movie_title.lower():
                 if year is None or movie.get('year') == year:
-                    logger.debug(f"Found movie '{movie_title}' with ID {movie['id']}")
+                    logger.debug(f"Found movie '{movie_title}' with ID {movie['id']} (exact match)")
                     return movie['id']
+        
+        # If exact match fails and we have a year, try matching title without year suffix
+        if year is not None:
+            # Remove year suffix patterns like " (2025)" or " 2025"
+            title_without_year = movie_title
+            for pattern in [f' ({year})', f' {year}']:
+                if title_without_year.lower().endswith(pattern.lower()):
+                    title_without_year = title_without_year[:-len(pattern)].strip()
+                    break
+            
+            # Try matching with cleaned title
+            if title_without_year.lower() != movie_title.lower():
+                for movie in movies:
+                    if movie['title'].lower() == title_without_year.lower():
+                        if movie.get('year') == year:
+                            logger.debug(f"Found movie '{title_without_year}' with ID {movie['id']} (cleaned title match)")
+                            return movie['id']
         
         logger.warning(f"Movie '{movie_title}' not found in Radarr")
         return None
