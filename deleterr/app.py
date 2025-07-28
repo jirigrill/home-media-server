@@ -11,6 +11,7 @@ from config import Config
 from services.sonarr_service import SonarrService
 from services.radarr_service import RadarrService
 from services.webhook_processor import WebhookProcessor
+from utils.parsers import MediaParser
 
 # Initialize configuration
 config = Config.from_env()
@@ -123,10 +124,19 @@ def test_webhook():
         
         data = request.json
         logger.info(f"Test webhook parsed JSON: {data}")
+        
+        # Test parsing the webhook data with our parser
+        parsed_item = MediaParser.parse_webhook_data(data)
+        logger.info(f"Parser result: {parsed_item}")
+        
         return jsonify({
             'status': 'received',
             'timestamp': datetime.now().isoformat(),
-            'data': data
+            'data': data,
+            'parser_test': {
+                'success': parsed_item is not None,
+                'parsed_item': str(parsed_item) if parsed_item else None
+            }
         })
     except Exception as e:
         logger.error(f"Test webhook error: {e}")
