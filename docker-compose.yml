@@ -41,6 +41,7 @@ services:
       - jellyfin_data:/cache
       - ${SHOWS_PATH}:/shows
       - ${MOVIES_PATH}:/movies
+      - ./jellyfin/plugins:/config/plugins
     devices:
       - ${RENDER_DEVICE}:${RENDER_DEVICE}
 
