@@ -2,13 +2,16 @@
 Searcherr - Automated missing media search service for Radarr and Sonarr
 """
 
+import atexit
 import logging
+import threading
 from datetime import datetime
 from typing import Any
 
 from flask import Flask, request
 
 from config import Config
+from scheduler import SearchScheduler
 from services import RadarrService
 
 
@@ -28,6 +31,22 @@ def create_app() -> Flask:
     # Register routes and error handlers
     _register_routes(app, config, radarr_service)
     _register_error_handlers(app)
+
+    # Start background scheduler if enabled
+    if config.enable_scheduler:
+        scheduler = SearchScheduler(
+            interval_hours=config.scheduler_interval_hours,
+            base_url=config.host,
+            port=config.port,
+            run_on_startup=config.scheduler_run_on_startup,
+        )
+        scheduler.start()
+
+        # Ensure scheduler is stopped when app shuts down
+        atexit.register(scheduler.stop)
+
+        # Store scheduler in app config for potential access
+        app.scheduler = scheduler
 
     return app
 
@@ -92,19 +111,24 @@ def _register_routes(app: Flask, config: Config, radarr_service: RadarrService) 
         """Trigger manual search for missing media."""
         logger.info("Manual search triggered")
 
-        # Use the new BaseService method for movies
-        result = radarr_service.search_stalled_missing_space_check(
-            config.min_free_space_gb, "movies", config.stalled_download_hours
-        )
+        def run_search():
+            """Run search in background thread."""
+            try:
+                result = radarr_service.search_stalled_missing_space_check(
+                    config.min_free_space_gb, "movies", config.stalled_download_hours
+                )
+                if "error" in result:
+                    logger.error(f"Background search failed: {result['message']}")
+                else:
+                    logger.info(f"Background search completed: {result.get('count', 0)} items processed")
+            except Exception as e:
+                logger.error(f"Background search failed: {e}")
 
-        # Return appropriate HTTP status code based on result
-        if "error" in result:
-            if "Insufficient disk space" in result["error"]:
-                return result, 400
-            else:
-                return result, 500
+        # Start search in background thread
+        threading.Thread(target=run_search, daemon=True).start()
 
-        return result
+        # Return immediate response without calling get_missing_items to avoid duplicate logging
+        return {"message": "Search started in background", "timestamp": datetime.utcnow().isoformat()}
 
     @app.route("/test", methods=["POST"])
     def test() -> dict[str, Any]:

@@ -25,9 +25,7 @@ class BaseService(ABC):
         self.api_key = api_key
         self.logger = logging.getLogger(self.__class__.__name__)
         self.session = requests.Session()
-        self.session.headers.update(
-            {"X-Api-Key": self.api_key, "Content-Type": "application/json"}
-        )
+        self.session.headers.update({"X-Api-Key": self.api_key, "Content-Type": "application/json"})
 
     def _make_request(
         self,
@@ -56,9 +54,7 @@ class BaseService(ABC):
         self.logger.debug(f"Making {method} request to {url}")
 
         try:
-            response = self.session.request(
-                method=method, url=url, json=data, params=params, timeout=30
-            )
+            response = self.session.request(method=method, url=url, json=data, params=params, timeout=30)
             response.raise_for_status()
             return response.json()
 
@@ -105,9 +101,12 @@ class BaseService(ABC):
         pass
 
     @abstractmethod
-    def search_all_missing(self) -> bool:
+    def search_all_missing(self, missing_items: list[dict[str, Any]] | None = None) -> bool:
         """
         Trigger search for all missing items.
+
+        Args:
+            missing_items: Optional pre-fetched missing items list to avoid duplicate API call
 
         Returns:
             True if search was triggered successfully
@@ -149,9 +148,7 @@ class BaseService(ABC):
                 return {"error": "No disk space information available", "path": path}
 
             # Find exact path match
-            matching_disk = next(
-                (disk for disk in disk_space_info if disk.get("path") == path), None
-            )
+            matching_disk = next((disk for disk in disk_space_info if disk.get("path") == path), None)
 
             if not matching_disk:
                 return {
@@ -188,9 +185,7 @@ class BaseService(ABC):
         """
         # Check for stalled downloads first
         self.logger.info("Checking for stalled downloads...")
-        stalled_check_results = self.check_and_blocklist_search_stalled_downloads(
-            stalled_hours
-        )
+        stalled_check_results = self.check_and_blocklist_search_stalled_downloads(stalled_hours)
 
         # Use standard media path
         path = f"/{media_type}"
@@ -229,16 +224,14 @@ class BaseService(ABC):
                     "timestamp": datetime.utcnow().isoformat(),
                 }
 
-            # Trigger search for all missing items
-            search_success = self.search_all_missing()
+            # Trigger search for all missing items (pass the items to avoid duplicate API call)
+            search_success = self.search_all_missing(missing_items)
 
             return {
-                'message': 'Search triggered successfully' if search_success else 'Search failed',
+                "message": "Search triggered successfully" if search_success else "Search failed",
                 "count": len(missing_items),
-                "missing_items": [
-                    item.get("title", "Unknown") for item in missing_items[:10]
-                ],  # Show first 10
-                'success': search_success,
+                "missing_items": [item.get("title", "Unknown") for item in missing_items[:10]],  # Show first 10
+                "success": search_success,
                 "path": path,
                 "free_gb": space_check["free_gb"],
                 "stalled_downloads": stalled_check_results,
@@ -254,9 +247,7 @@ class BaseService(ABC):
                 "timestamp": datetime.utcnow().isoformat(),
             }
 
-    def check_and_blocklist_search_stalled_downloads(
-        self, stalled_hours: int
-    ) -> dict[str, Any]:
+    def check_and_blocklist_search_stalled_downloads(self, stalled_hours: int) -> dict[str, Any]:
         """
         Check for downloads running longer than specified hours and blocklist them.
 
@@ -293,19 +284,13 @@ class BaseService(ABC):
                     # Parse the added timestamp
                     added_str = item.get("added", "")
                     if not added_str:
-                        result["active_downloads"].append(
-                            {"title": item_title, "status": "unknown_time"}
-                        )
+                        result["active_downloads"].append({"title": item_title, "status": "unknown_time"})
                         continue
 
                     # Handle different timestamp formats
                     added_str = added_str.replace("Z", "+00:00")
-                    added_time = datetime.fromisoformat(
-                        added_str.replace("+00:00", "")
-                    ).replace(tzinfo=None)
-                    hours_running = (
-                        datetime.utcnow() - added_time
-                    ).total_seconds() / 3600
+                    added_time = datetime.fromisoformat(added_str.replace("+00:00", "")).replace(tzinfo=None)
+                    hours_running = (datetime.utcnow() - added_time).total_seconds() / 3600
 
                     # Check if download is stalled
                     if added_time < stalled_threshold:

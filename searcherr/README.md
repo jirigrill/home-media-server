@@ -8,8 +8,9 @@ Searcherr is a Python service that searches for missing media in your Radarr and
 
 ## Features
 
+- **Automatic Scheduling**: Optional background scheduler for periodic searches (default: every 8 hours)
 - **Stalled Download Detection**: Automatically detects and blocklists downloads running longer than configured time
-- **Intelligent Search Strategy**: Searches missing items one-by-one with 5-minute delays to avoid overwhelming indexers
+- **Intelligent Search Strategy**: Searches missing items one-by-one with configurable delays to avoid overwhelming indexers
 - **Disk Space Management**: Respects minimum free space requirements before searching
 - **Download Queue Monitoring**: Provides detailed information about active and stalled downloads
 - **Multi-Service Support**: Works with Radarr (currently) and Sonarr (planned)
@@ -66,12 +67,31 @@ cp .env.example .env
 | `MIN_FREE_SPACE_GB` | `20` | Minimum free space in GB before searching |
 | `STALLED_DOWNLOAD_HOURS` | `4` | Hours before considering a download stalled |
 | `SEARCH_DELAY_MINUTES` | `5` | Minutes to wait between individual searches |
-| `SEARCH_INTERVAL_HOURS` | `6` | Hours between search runs (for future scheduling) |
+| `ENABLE_SCHEDULER` | `true` | Enable automatic periodic searching |
+| `SCHEDULER_INTERVAL_HOURS` | `8` | Hours between automatic search runs |
+| `SCHEDULER_RUN_ON_STARTUP` | `true` | Run first search immediately on container startup |
+| `SEARCH_INTERVAL_HOURS` | `6` | Hours between search runs (legacy, use SCHEDULER_INTERVAL_HOURS) |
 | `HOST` | `0.0.0.0` | Flask host (use 0.0.0.0 for containers) |
 | `PORT` | `5001` | Flask port |
 | `LOG_LEVEL` | `INFO` | Logging level |
 
 Then edit `.env` with your specific configuration values.
+
+## Automatic Scheduling
+
+When `ENABLE_SCHEDULER=true`, Searcherr runs a background scheduler that automatically calls the `/search` endpoint at the configured interval. This provides hands-off operation for maintaining your media collection.
+
+**Scheduler Features:**
+- Runs in a separate daemon thread
+- Gracefully handles application shutdown
+- Logs all scheduled search results
+- Can be disabled by setting `ENABLE_SCHEDULER=false`
+- Respects all the same disk space and stalled download checks as manual searches
+
+**Default Behavior:**
+- When `SCHEDULER_RUN_ON_STARTUP=true`: First search runs immediately on container startup, then every `SCHEDULER_INTERVAL_HOURS`
+- When `SCHEDULER_RUN_ON_STARTUP=false`: First search runs after the configured interval (e.g., 8 hours after startup)
+- Each scheduled search processes all missing items with the configured delay between them
 
 ## API Endpoints
 
