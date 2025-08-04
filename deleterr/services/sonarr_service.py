@@ -37,11 +37,13 @@ class SonarrService(ArrService):
                 return False
             
             # Unmonitor episode
-            response = self._make_request(f'episode/{episode_id}', method='PUT', data={'monitored': False})
-            if response:
-                logger.info(f"Successfully unmonitored episode: {item}")
-                return True
-            return False
+            success = self._unmonitor_episode(episode_id, item)
+            
+            if success:
+                # Check and unmonitor season if all episodes are unmonitored
+                self._check_and_unmonitor_season_if_empty(series_id, item.season)
+            
+            return success
         except Exception as e:
             logger.error(f"Error unmonitoring episode {item}: {e}")
             return False
@@ -98,3 +100,86 @@ class SonarrService(ArrService):
         
         logger.warning(f"Episode S{season_number:02d}E{episode_number:02d} not found for series ID {series_id}")
         return None
+    
+    def _unmonitor_episode(self, episode_id: int, item: MediaItem) -> bool:
+        """Unmonitor a single episode"""
+        try:
+            response = self._make_request(f'episode/{episode_id}', method='PUT', data={'monitored': False})
+            if response:
+                logger.info(f"Successfully unmonitored episode: {item}")
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Error unmonitoring episode {item}: {e}")
+            return False
+    
+    def _check_and_unmonitor_season_if_empty(self, series_id: int, season_number: int) -> None:
+        """Check if season has no monitored episodes and unmonitor season if empty"""
+        try:
+            if self._is_season_completely_unmonitored(series_id, season_number):
+                logger.info(f"All episodes in season {season_number} are unmonitored, unmonitoring season")
+                self._unmonitor_season(series_id, season_number)
+        except Exception as e:
+            logger.error(f"Error checking/unmonitoring season {season_number}: {e}")
+    
+    def _is_season_completely_unmonitored(self, series_id: int, season_number: int) -> bool:
+        """Check if all episodes in a season are unmonitored"""
+        try:
+            response = self._make_request('episode', params={'seriesId': series_id})
+            if not response:
+                return False
+            
+            episodes = response.json()
+            season_episodes = [ep for ep in episodes if ep['seasonNumber'] == season_number]
+            
+            if not season_episodes:
+                logger.debug(f"No episodes found for season {season_number}")
+                return False
+            
+            # Check if all episodes in the season are unmonitored
+            monitored_episodes = [ep for ep in season_episodes if ep.get('monitored', True)]
+            
+            logger.debug(f"Season {season_number}: {len(season_episodes)} total episodes, {len(monitored_episodes)} monitored")
+            return len(monitored_episodes) == 0
+            
+        except Exception as e:
+            logger.error(f"Error checking season {season_number} monitoring status: {e}")
+            return False
+    
+    def _unmonitor_season(self, series_id: int, season_number: int) -> bool:
+        """Unmonitor a specific season"""
+        try:
+            # Get series data to modify season monitoring
+            response = self._make_request(f'series/{series_id}')
+            if not response:
+                return False
+            
+            series_data = response.json()
+            seasons = series_data.get('seasons', [])
+            
+            # Find and unmonitor the specific season
+            season_updated = False
+            for season in seasons:
+                if season['seasonNumber'] == season_number:
+                    if season.get('monitored', True):
+                        season['monitored'] = False
+                        season_updated = True
+                        logger.debug(f"Marking season {season_number} as unmonitored")
+                    break
+            
+            if not season_updated:
+                logger.debug(f"Season {season_number} was already unmonitored or not found")
+                return True
+            
+            # Update the series with modified season monitoring
+            response = self._make_request(f'series/{series_id}', method='PUT', data=series_data)
+            if response:
+                logger.info(f"Successfully unmonitored season {season_number} for series ID {series_id}")
+                return True
+            else:
+                logger.error(f"Failed to update season monitoring for series ID {series_id}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error unmonitoring season {season_number}: {e}")
+            return False
