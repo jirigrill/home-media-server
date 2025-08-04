@@ -12,8 +12,8 @@ class Config(BaseSettings):
     # API Configuration
     radarr_url: HttpUrl = Field(..., description="Radarr base URL")
     radarr_api_key: str = Field(..., description="Radarr API key")
-    sonarr_url: HttpUrl | None = Field(None, description="Sonarr base URL (future use)")
-    sonarr_api_key: str | None = Field(None, description="Sonarr API key (future use)")
+    sonarr_url: HttpUrl = Field(..., description="Sonarr base URL")
+    sonarr_api_key: str = Field(..., description="Sonarr API key")
 
     # Disk Space Configuration
     min_free_space_gb: int = Field(20, ge=1, description="Minimum free space in GB before searching")

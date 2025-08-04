@@ -56,6 +56,11 @@ class BaseService(ABC):
         try:
             response = self.session.request(method=method, url=url, json=data, params=params, timeout=30)
             response.raise_for_status()
+            
+            # Handle empty responses (like DELETE requests)
+            if response.status_code == 204 or not response.content.strip():
+                return {}
+            
             return response.json()
 
         except requests.exceptions.RequestException as e:
@@ -112,6 +117,38 @@ class BaseService(ABC):
             True if search was triggered successfully
         """
         pass
+
+    def blocklist_download(self, queue_item: dict[str, Any], reason: str) -> bool:
+        """
+        Blocklist a download item from the queue.
+
+        Both Sonarr and Radarr use the same API pattern: deleting from queue
+        automatically adds the item to the blocklist.
+
+        Args:
+            queue_item: Queue item dictionary containing download information
+            reason: Reason for blocklisting
+
+        Returns:
+            True if blocklisting was successful
+        """
+        try:
+            queue_id = queue_item.get("id")
+            if not queue_id:
+                self.logger.error("Queue item missing ID for blocklisting")
+                return False
+
+            # Delete from queue - this automatically blocklists in both Sonarr and Radarr
+            self._make_request("DELETE", f"queue/{queue_id}")
+            
+            item_title = queue_item.get("title", "Unknown")
+            self.logger.info(f"Successfully blocklisted: {item_title} (Reason: {reason})")
+            return True
+
+        except Exception as e:
+            item_title = queue_item.get("title", "Unknown")
+            self.logger.error(f"Failed to blocklist {item_title}: {e}")
+            return False
 
     def get_system_status(self) -> dict[str, Any]:
         """
@@ -224,8 +261,19 @@ class BaseService(ABC):
                     "timestamp": datetime.utcnow().isoformat(),
                 }
 
-            # Trigger search for all missing items (pass the items to avoid duplicate API call)
-            search_success = self.search_all_missing(missing_items)
+            # Get current queue to filter out items already downloading
+            current_queue = self.get_queue()
+            downloading_ids = {item.get("item_id") for item in current_queue if item.get("item_id")}
+            
+            # Filter missing items to exclude those already downloading
+            items_to_search = [item for item in missing_items if item["id"] not in downloading_ids]
+            
+            if len(items_to_search) != len(missing_items):
+                skipped_count = len(missing_items) - len(items_to_search)
+                self.logger.info(f"Skipping {skipped_count} items already downloading")
+            
+            # Trigger search for remaining missing items
+            search_success = self.search_all_missing(items_to_search)
 
             return {
                 "message": "Search triggered successfully" if search_success else "Search failed",
@@ -235,6 +283,7 @@ class BaseService(ABC):
                 "path": path,
                 "free_gb": space_check["free_gb"],
                 "stalled_downloads": stalled_check_results,
+                "current_queue": [{"title": item.get("title"), "hours_running": item.get("hours_running")} for item in current_queue],
                 "timestamp": datetime.utcnow().isoformat(),
             }
 
@@ -258,9 +307,8 @@ class BaseService(ABC):
             Dictionary with check results and statistics
         """
         try:
-            # Get current queue
-            queue_response = self._make_request("GET", "queue")
-            queue_items = queue_response.get("records", [])
+            # Get current queue using the new method
+            queue_items = self.get_queue()
 
             result = {
                 "queue_items_total": len(queue_items),
@@ -274,27 +322,21 @@ class BaseService(ABC):
                 self.logger.info("No items in download queue")
                 return result
 
-            stalled_threshold = datetime.utcnow() - timedelta(hours=stalled_hours)
+            stalled_threshold_hours = stalled_hours
 
             for item in queue_items:
                 try:
                     item_title = item.get("title", "Unknown")
-                    item_id = item.get("movieId") or item.get("seriesId")
+                    item_id = item.get("item_id")
+                    hours_running = item.get("hours_running", 0)
 
-                    # Parse the added timestamp
-                    added_str = item.get("added", "")
-                    if not added_str:
+                    if hours_running == 0:
                         result["active_downloads"].append({"title": item_title, "status": "unknown_time"})
                         continue
 
-                    # Handle different timestamp formats
-                    added_str = added_str.replace("Z", "+00:00")
-                    added_time = datetime.fromisoformat(added_str.replace("+00:00", "")).replace(tzinfo=None)
-                    hours_running = (datetime.utcnow() - added_time).total_seconds() / 3600
-
                     # Check if download is stalled
-                    if added_time < stalled_threshold:
-                        download_id = item.get("downloadId")
+                    if hours_running >= stalled_threshold_hours:
+                        download_id = item.get("download_id")
                         if not download_id:
                             continue
 
@@ -302,18 +344,18 @@ class BaseService(ABC):
                         stalled_item = {
                             "title": item_title,
                             "item_id": item_id,
-                            "hours_running": round(hours_running, 1),
+                            "hours_running": hours_running,
                             "download_id": download_id,
                         }
                         result["stalled_items"].append(stalled_item)
 
-                        # Blocklist the download
-                        blocklist_data = {
-                            "downloadId": download_id,
-                            "reason": f"Stalled download (>{stalled_hours} hours)",
-                        }
-                        self._make_request("POST", "blocklist", data=blocklist_data)
-                        result["blocklisted_count"] += 1
+                        # Blocklist the download - need to pass original item format for API call
+                        original_item = {"id": item.get("id"), "title": item_title}
+                        reason = f"Stalled download (>{stalled_hours} hours)"
+                        if self.blocklist_download(original_item, reason):
+                            result["blocklisted_count"] += 1
+                        else:
+                            self.logger.warning(f"Failed to blocklist item: {item_title}")
 
                         # Trigger new search for the item
                         if item_id:
@@ -329,7 +371,7 @@ class BaseService(ABC):
                         result["active_downloads"].append(
                             {
                                 "title": item_title,
-                                "hours_running": round(hours_running, 1),
+                                "hours_running": hours_running,
                             }
                         )
 
@@ -357,3 +399,53 @@ class BaseService(ABC):
                 "researched_count": 0,
                 "active_downloads": [],
             }
+
+    def get_queue(self) -> list[dict[str, Any]]:
+        """
+        Get current download queue items.
+
+        Returns:
+            List of queue items with download information
+        """
+        try:
+            queue_response = self._make_request("GET", "queue")
+            queue_items = queue_response.get("records", [])
+            
+            formatted_items = []
+            for item in queue_items:
+                try:
+                    item_title = item.get("title", "Unknown")
+                    item_id = item.get("movieId") or item.get("episodeId") or item.get("seriesId")
+                    
+                    # Parse the added timestamp to calculate running time
+                    added_str = item.get("added", "")
+                    hours_running = 0
+                    if added_str:
+                        added_str = added_str.replace("Z", "+00:00")
+                        added_time = datetime.fromisoformat(added_str.replace("+00:00", "")).replace(tzinfo=None)
+                        hours_running = (datetime.utcnow() - added_time).total_seconds() / 3600
+                    
+                    formatted_item = {
+                        "id": item.get("id"),
+                        "title": item_title,
+                        "item_id": item_id,
+                        "status": item.get("status", "Unknown"),
+                        "progress": item.get("sizeleft", 0),
+                        "size": item.get("size", 0),
+                        "download_id": item.get("downloadId"),
+                        "hours_running": round(hours_running, 1),
+                        "added": added_str,
+                        "protocol": item.get("protocol", "Unknown"),
+                        "indexer": item.get("indexer", "Unknown"),
+                    }
+                    formatted_items.append(formatted_item)
+                    
+                except Exception as e:
+                    self.logger.warning(f"Error formatting queue item: {e}")
+                    continue
+            
+            return formatted_items
+            
+        except Exception as e:
+            self.logger.error(f"Failed to get queue: {e}")
+            return []

@@ -12,7 +12,7 @@ from flask import Flask, request
 
 from config import Config
 from scheduler import SearchScheduler
-from services import RadarrService
+from services import RadarrService, SonarrService
 
 
 def create_app() -> Flask:
@@ -24,12 +24,13 @@ def create_app() -> Flask:
 
     # Initialize services
     radarr_service = RadarrService(config.radarr_url, config.radarr_api_key, config.search_delay_minutes)
+    sonarr_service = SonarrService(config.sonarr_url, config.sonarr_api_key, config.search_delay_minutes)
 
     # Setup logging
     _setup_logging(config)
 
     # Register routes and error handlers
-    _register_routes(app, config, radarr_service)
+    _register_routes(app, config, radarr_service, sonarr_service)
     _register_error_handlers(app)
 
     # Start background scheduler if enabled
@@ -63,7 +64,39 @@ def _setup_logging(config: Config) -> None:
     logger.info("Starting Searcherr application")
 
 
-def _register_routes(app: Flask, config: Config, radarr_service: RadarrService) -> None:
+def _execute_background_search(
+    service: str, config: Config, radarr_service: RadarrService, sonarr_service: SonarrService, logger
+) -> None:
+    """Execute search in background thread."""
+    try:
+        logger.info(f"Background search starting with service parameter: '{service}'")
+        if service in ["radarr", "both"]:
+            logger.info("Starting Radarr search...")
+            result = radarr_service.search_stalled_missing_space_check(
+                config.min_free_space_gb, "movies", config.stalled_download_hours
+            )
+            if "error" in result:
+                logger.error(f"Radarr search failed: {result['message']}")
+            else:
+                logger.info(f"Radarr search completed: {result.get('count', 0)} items processed")
+
+        if service in ["sonarr", "both"]:
+            logger.info("Starting Sonarr search...")
+            result = sonarr_service.search_stalled_missing_space_check(
+                config.min_free_space_gb, "shows", config.stalled_download_hours
+            )
+            if "error" in result:
+                logger.error(f"Sonarr search failed: {result['message']}")
+            else:
+                logger.info(f"Sonarr search completed: {result.get('count', 0)} items processed")
+
+    except Exception as e:
+        logger.error(f"Background search failed: {e}")
+
+
+def _register_routes(
+    app: Flask, config: Config, radarr_service: RadarrService, sonarr_service: SonarrService
+) -> None:
     """Register application routes."""
     logger = logging.getLogger(__name__)
 
@@ -94,14 +127,15 @@ def _register_routes(app: Flask, config: Config, radarr_service: RadarrService) 
             "url": config.radarr_url,
         }
 
-        if config.sonarr_url:
-            health_status["services"]["sonarr"] = {
-                "status": "not_implemented",
-                "url": config.sonarr_url,
-            }
+        # Check Sonarr connectivity
+        sonarr_connected = sonarr_service.test_connection()
+        health_status["services"]["sonarr"] = {
+            "status": "connected" if sonarr_connected else "disconnected",
+            "url": config.sonarr_url,
+        }
 
         # Overall status
-        if not radarr_connected:
+        if not radarr_connected or not sonarr_connected:
             health_status["status"] = "unhealthy"
 
         return health_status
@@ -109,26 +143,24 @@ def _register_routes(app: Flask, config: Config, radarr_service: RadarrService) 
     @app.route("/search", methods=["POST"])
     def search() -> dict[str, Any]:
         """Trigger manual search for missing media."""
-        logger.info("Manual search triggered")
+        # Get service parameter (radarr, sonarr, or both)
+        service = request.args.get("service", "both").lower()
 
-        def run_search():
-            """Run search in background thread."""
-            try:
-                result = radarr_service.search_stalled_missing_space_check(
-                    config.min_free_space_gb, "movies", config.stalled_download_hours
-                )
-                if "error" in result:
-                    logger.error(f"Background search failed: {result['message']}")
-                else:
-                    logger.info(f"Background search completed: {result.get('count', 0)} items processed")
-            except Exception as e:
-                logger.error(f"Background search failed: {e}")
+        logger.info(f"Manual search triggered for service: {service}")
 
         # Start search in background thread
-        threading.Thread(target=run_search, daemon=True).start()
+        threading.Thread(
+            target=_execute_background_search,
+            args=(service, config, radarr_service, sonarr_service, logger),
+            daemon=True
+        ).start()
 
-        # Return immediate response without calling get_missing_items to avoid duplicate logging
-        return {"message": "Search started in background", "timestamp": datetime.utcnow().isoformat()}
+        # Return immediate response
+        return {
+            "message": f"Search started in background for {service}",
+            "service": service,
+            "timestamp": datetime.utcnow().isoformat()
+        }
 
     @app.route("/test", methods=["POST"])
     def test() -> dict[str, Any]:
