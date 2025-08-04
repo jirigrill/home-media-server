@@ -47,19 +47,41 @@ class SonarrService(ArrService):
             return False
     
     def _find_series(self, series_name: str) -> Optional[int]:
-        """Find series ID by name"""
+        """Find series ID by name with fuzzy matching"""
         response = self._make_request('series')
         if not response:
             return None
         
         series_list = response.json()
+        series_name_clean = self._clean_series_name(series_name)
+        
+        # First try exact match
         for series in series_list:
             if series['title'].lower() == series_name.lower():
-                logger.debug(f"Found series '{series_name}' with ID {series['id']}")
+                logger.debug(f"Found exact match for series '{series_name}' with ID {series['id']}")
                 return series['id']
         
-        logger.warning(f"Series '{series_name}' not found in Sonarr")
+        # Then try fuzzy matching
+        for series in series_list:
+            sonarr_title_clean = self._clean_series_name(series['title'])
+            if sonarr_title_clean == series_name_clean:
+                logger.debug(f"Found fuzzy match for series '{series_name}' -> '{series['title']}' with ID {series['id']}")
+                return series['id']
+        
+        # Log available series for debugging
+        available_series = [s['title'] for s in series_list]
+        logger.warning(f"Series '{series_name}' not found in Sonarr. Available series: {available_series[:10]}{'...' if len(available_series) > 10 else ''}")
         return None
+    
+    def _clean_series_name(self, name: str) -> str:
+        """Clean series name for fuzzy matching"""
+        import re
+        # Remove common variations: years, special chars, extra spaces
+        cleaned = re.sub(r'\s*\(\d{4}\)\s*', '', name)  # Remove (YYYY)
+        cleaned = re.sub(r'\s*\[\d{4}\]\s*', '', cleaned)  # Remove [YYYY]
+        cleaned = re.sub(r'[^\w\s]', '', cleaned)  # Remove special chars
+        cleaned = re.sub(r'\s+', ' ', cleaned).strip().lower()  # Normalize spaces
+        return cleaned
     
     def _find_episode(self, series_id: int, season_number: int, episode_number: int) -> Optional[int]:
         """Find episode ID by series ID, season, and episode number"""
