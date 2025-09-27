@@ -125,6 +125,7 @@ backup: ## Backup configuration data
 		-v media_server_sonarr_data:/data/sonarr \
 		-v media_server_radarr_data:/data/radarr \
 		-v media_server_bazarr_data:/data/bazarr \
+		-v media_server_huntarr_data:/data/huntarr \
 		-v media_server_cleanuparr_data:/data/cleanuparr \
 		-v media_server_deleterr_data:/data/deleterr \
 		-v $$(pwd)/backups:/backup \
@@ -153,6 +154,7 @@ restore-backup: ## Restore from specific backup file (use BACKUP=filename)
 			-v media_server_sonarr_data:/data/sonarr \
 			-v media_server_radarr_data:/data/radarr \
 			-v media_server_bazarr_data:/data/bazarr \
+			-v media_server_huntarr_data:/data/huntarr \
 			-v media_server_cleanuparr_data:/data/cleanuparr \
 			-v media_server_deleterr_data:/data/deleterr \
 			-v $$(pwd)/backups:/backup \
@@ -166,7 +168,7 @@ restore-backup: ## Restore from specific backup file (use BACKUP=filename)
 health: ## Check health of all services
 	@echo "Service Health Check:"
 	@echo "==================="
-	@services="jellyfin qbittorrent prowlarr sonarr radarr bazarr cleanuparr deleterr"; \
+	@services="jellyfin qbittorrent prowlarr sonarr radarr bazarr huntarr cleanuparr deleterr"; \
 	for service in $$services; do \
 		echo -n "$$service: "; \
 		if docker-compose ps $$service | grep -q "Up"; then \
@@ -228,5 +230,6 @@ quick-start: setup up ## Complete setup and start services
 	@echo "  Sonarr:       http://localhost:$$(grep SONARR_PORT .env | cut -d= -f2)"
 	@echo "  Radarr:       http://localhost:$$(grep RADARR_PORT .env | cut -d= -f2)"
 	@echo "  Bazarr:       http://localhost:$$(grep BAZARR_PORT .env | cut -d= -f2)"
+	@echo "  Huntarr:      http://localhost:$$(grep HUNTARR_PORT .env | cut -d= -f2)"
 	@echo "  Cleanuparr:   http://localhost:$$(grep CLEANUPARR_PORT .env | cut -d= -f2)"
 	@echo "  Deleterr:     http://localhost:$$(grep DELETERR_PORT .env | cut -d= -f2)"

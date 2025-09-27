@@ -175,6 +175,26 @@ services:
       - sonarr
       - radarr
 
+  huntarr:
+    image: huntarr/huntarr:latest
+    container_name: huntarr
+    hostname: huntarr
+    restart: unless-stopped
+    mem_limit: ${HUNTARR_MEM_LIMIT}
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    networks:
+      - media_server
+    ports:
+      - ${HUNTARR_PORT}:9705
+    volumes:
+      - huntarr_data:/config
+    depends_on:
+      - sonarr
+      - radarr
+
 volumes:
   qbittorrent_data:
   jellyfin_data:
@@ -184,6 +204,7 @@ volumes:
   bazarr_data:
   cleanuparr_data:
   deleterr_data:
+  huntarr_data:
 
 networks:
   media_server:

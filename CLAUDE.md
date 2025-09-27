@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a Docker-based home media server stack with a custom Python service called Deleterr. The main components are:
 
-- **Docker Compose Stack**: Orchestrates the complete media server ecosystem with 8 services
+- **Docker Compose Stack**: Orchestrates the complete media server ecosystem with 9 services
 - **Core Media Services**:
   - **Jellyfin**: Media streaming server with hardware transcoding support
   - **qBittorrent**: Torrent client with web interface for content acquisition
@@ -15,6 +15,7 @@ This is a Docker-based home media server stack with a custom Python service call
   - **Sonarr**: TV show automation, monitoring, and library management
   - **Radarr**: Movie automation, monitoring, and library management
   - **Bazarr**: Subtitle automation and management for movies and TV shows
+  - **Huntarr**: Automated missing content discovery and quality upgrade tool
 - **Maintenance & Cleanup**:
   - **Cleanuparr**: Automated cleanup tool for managing disk space and old downloads
   - **Deleterr**: Custom Flask application that receives webhooks from Jellyfin and automatically unmonitors deleted content in Sonarr/Radarr
@@ -84,6 +85,7 @@ Create a `.env` file with required configuration:
 - `SONARR_PORT` (default: 8989)
 - `RADARR_PORT` (default: 7878)
 - `BAZARR_PORT` (default: 6767)
+- `HUNTARR_PORT` (default: 9705)
 - `CLEANUPARR_PORT` (default: 11011)
 - `DELETERR_PORT` (default: 5000)
 
@@ -102,6 +104,7 @@ The stack has the following dependency hierarchy:
 - **Prowlarr & qBittorrent**: Foundation services that others depend on
 - **Sonarr & Radarr**: Depend on Prowlarr and qBittorrent for indexers and downloads
 - **Bazarr**: Depends on Sonarr and Radarr for media library integration
+- **Huntarr**: Depends on Sonarr and Radarr for missing content discovery
 - **Cleanuparr**: Depends on Sonarr, Radarr, and qBittorrent for cleanup coordination
 - **Deleterr**: Depends on Sonarr and Radarr for API connectivity validation
 - **Jellyfin**: Independent media server that serves the organized content

@@ -1,15 +1,18 @@
 # Docker Media Server Stack
 
-A comprehensive media server setup using Docker Compose, featuring Jellyfin as the media server along with various automation tools for content management.
+A comprehensive media server setup using Docker Compose with 9 services, featuring Jellyfin as the media server along with content acquisition, management, cleanup, and automation tools.
 
 ## Features
 
-- **Jellyfin**: Media streaming server
+- **Jellyfin**: Media streaming server with hardware transcoding support
 - **QBittorrent**: Torrent client with web interface
-- **Prowlarr**: Indexer manager/proxy
+- **Prowlarr**: Indexer manager/proxy for coordinating searches
 - **Sonarr**: TV shows automation and management
 - **Radarr**: Movies automation and management
 - **Bazarr**: Subtitles automation and management
+- **Huntarr**: Automated missing content discovery and quality upgrade tool
+- **Cleanuparr**: Automated cleanup tool for managing disk space and old downloads
+- **Deleterr**: Custom webhook service that automatically unmonitors deleted content
 
 ## Prerequisites
 
@@ -50,6 +53,7 @@ Default ports (configurable in `.env.example`):
 - Sonarr: 8989
 - Radarr: 7878
 - Bazarr: 6767
+- Huntarr: 9705
 - Cleanuparr: 11011
 - Deleterr: 5000
 
