@@ -129,6 +129,27 @@ services:
       - sonarr
       - radarr
 
+  cleanuparr:
+    image: ghcr.io/cleanuparr/cleanuparr:latest
+    container_name: cleanuparr
+    hostname: cleanuparr
+    restart: unless-stopped
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    networks:
+      - media_server
+    ports:
+      - ${CLEANUPARR_PORT}:11011
+    volumes:
+      - cleanuparr_data:/config
+      - ${DOWNLOADS_PATH}:/downloads
+    depends_on:
+      - sonarr
+      - radarr
+      - qbittorrent
+
   deleterr:
     build: ./deleterr
     container_name: deleterr
@@ -158,6 +179,7 @@ volumes:
   sonarr_data:
   radarr_data:
   bazarr_data:
+  cleanuparr_data:
   deleterr_data:
 
 networks:
