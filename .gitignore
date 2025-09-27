@@ -50,3 +50,4 @@ logs/
 
 # jellyfin plugins setup
 jellyfin/plugins/CLAUDE.md
+jellyfin/
