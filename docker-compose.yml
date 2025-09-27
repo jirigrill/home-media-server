@@ -4,6 +4,7 @@ services:
     container_name: qbittorrent
     hostname: qbittorrent
     restart: unless-stopped
+    mem_limit: ${QBITTORRENT_MEM_LIMIT}
     networks:
       - media_server
     environment:
@@ -134,6 +135,7 @@ services:
     container_name: cleanuparr
     hostname: cleanuparr
     restart: unless-stopped
+    mem_limit: ${CLEANUPARR_MEM_LIMIT}
     environment:
       - PUID=${PUID}
       - PGID=${PGID}
@@ -155,6 +157,7 @@ services:
     container_name: deleterr
     hostname: deleterr
     restart: unless-stopped
+    mem_limit: ${DELETERR_MEM_LIMIT}
     environment:
       - SONARR_URL=http://sonarr:8989
       - RADARR_URL=http://radarr:7878

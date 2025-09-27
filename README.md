@@ -25,38 +25,11 @@ git clone git@github.com:jirigrill/home-media-server.git
 cd home-media-server
 ```
 
-2. Create an `.env` file using the following template and adjust the values according to your setup:
-```env
-# Memory limits
-PROWLARR_MEM_LIMIT=256m
-SONARR_MEM_LIMIT=256m
-RADARR_MEM_LIMIT=256m
-BAZARR_MEM_LIMIT=512m
-
-# Path configurations
-DOWNLOADS_PATH=/path/to/downloads
-SHOWS_PATH=/path/to/media/shows
-MOVIES_PATH=/path/to/media/movies
-
-# User/Group configuration
-PUID=1000
-PGID=1000
-
-# Timezone
-TZ=Etc/UTC
-
-# Service ports
-QBITTORRENT_UI_PORT=8080
-QBITTORRENT_TORRENT_PORT=6881
-JELLYFIN_PORT=8096
-PROWLARR_PORT=9696
-SONARR_PORT=8989
-RADARR_PORT=7878
-BAZARR_PORT=6767
-
-# Jellyfin configuration
-JELLYFIN_ANALYZED_DURATION=1000M
+2. Create an `.env` file from the example template:
+```bash
+cp .env.example .env
 ```
+Then edit `.env` with your actual paths, ports, and API keys. See `.env.example` for all available configuration options including memory limits, service ports, and hardware acceleration settings.
 
 3. Create the external network:
 ```bash
@@ -70,19 +43,21 @@ docker-compose up -d
 
 ## Service Access
 
-Default ports (configurable in `.env`):
+Default ports (configurable in `.env.example`):
 - Jellyfin: 8096
 - QBittorrent: 8080 (Web UI), 6881 (Torrenting)
 - Prowlarr: 9696
 - Sonarr: 8989
 - Radarr: 7878
 - Bazarr: 6767
+- Cleanuparr: 11011
+- Deleterr: 5000
 
 ## Configuration
 
 ### Directory Structure
 
-The stack expects the following directory structure (configurable in `.env`):
+The stack expects the following directory structure (configurable in `.env.example`):
 ```
 /path/to/
 ├── downloads/
@@ -121,7 +96,7 @@ Each service requires initial configuration through their respective web interfa
 
 ## Resource Management
 
-- Memory limits are configurable through environment variables in the `.env` file`
+- Memory limits are configurable through environment variables in the `.env` file (see `.env.example` for defaults)
 - User/Group permissions are managed through PUID/PGID in the `.env` file
 
 ## Maintenance
@@ -149,11 +124,11 @@ docker-compose up -d
 
 2. **Network Issues**
    - Confirm media_server network exists
-   - Check for port conflicts in `.env`
+   - Check for port conflicts in `.env` (see `.env.example` for defaults)
 
 3. **Resource Issues**
    - Monitor container memory usage
-   - Adjust memory limits in `.env`
+   - Adjust memory limits in `.env` (see `.env.example` for recommended values)
 
 ## Security Notes
 

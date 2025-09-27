@@ -6,8 +6,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a Docker-based home media server stack with a custom Python service called Deleterr. The main components are:
 
-- **Docker Compose Stack**: Orchestrates Jellyfin, qBittorrent, Sonarr, Radarr, Bazarr, Prowlarr, and Deleterr services
-- **Deleterr Service**: Custom Flask application that receives webhooks from Jellyfin and automatically unmonitors deleted content in Sonarr/Radarr
+- **Docker Compose Stack**: Orchestrates the complete media server ecosystem with 8 services
+- **Core Media Services**:
+  - **Jellyfin**: Media streaming server with hardware transcoding support
+  - **qBittorrent**: Torrent client with web interface for content acquisition
+- **Content Management (*arr suite)**:
+  - **Prowlarr**: Indexer manager/proxy that coordinates search across torrent sites
+  - **Sonarr**: TV show automation, monitoring, and library management
+  - **Radarr**: Movie automation, monitoring, and library management
+  - **Bazarr**: Subtitle automation and management for movies and TV shows
+- **Maintenance & Cleanup**:
+  - **Cleanuparr**: Automated cleanup tool for managing disk space and old downloads
+  - **Deleterr**: Custom Flask application that receives webhooks from Jellyfin and automatically unmonitors deleted content in Sonarr/Radarr
 
 ## Common Commands
 
@@ -65,13 +75,36 @@ docker network create media_server
 ## Configuration
 
 ### Environment Variables
-Create a `.env` file with required configuration. Essential variables for Deleterr:
-- `SONARR_API_KEY` and `RADARR_API_KEY` (required)
+Create a `.env` file with required configuration:
+
+**Service Ports**:
+- `JELLYFIN_PORT` (default: 8096)
+- `QBITTORRENT_UI_PORT` (default: 8080) and `QBITTORRENT_TORRENT_PORT` (default: 6881)
+- `PROWLARR_PORT` (default: 9696)
+- `SONARR_PORT` (default: 8989)
+- `RADARR_PORT` (default: 7878)
+- `BAZARR_PORT` (default: 6767)
+- `CLEANUPARR_PORT` (default: 11011)
 - `DELETERR_PORT` (default: 5000)
-- Memory limits, paths, ports, PUID/PGID, timezone
+
+**API Keys** (required for service integration):
+- `SONARR_API_KEY` and `RADARR_API_KEY` (required for Deleterr)
+
+**System Configuration**:
+- Memory limits for each service (`*_MEM_LIMIT`)
+- File paths (`DOWNLOADS_PATH`, `SHOWS_PATH`, `MOVIES_PATH`)
+- User permissions (`PUID`, `PGID`)
+- Timezone (`TZ`)
+- Hardware acceleration (`RENDER_GROUP`, `RENDER_DEVICE`)
 
 ### Service Dependencies
-Deleterr depends on Sonarr and Radarr being available. The service automatically validates API connectivity on startup.
+The stack has the following dependency hierarchy:
+- **Prowlarr & qBittorrent**: Foundation services that others depend on
+- **Sonarr & Radarr**: Depend on Prowlarr and qBittorrent for indexers and downloads
+- **Bazarr**: Depends on Sonarr and Radarr for media library integration
+- **Cleanuparr**: Depends on Sonarr, Radarr, and qBittorrent for cleanup coordination
+- **Deleterr**: Depends on Sonarr and Radarr for API connectivity validation
+- **Jellyfin**: Independent media server that serves the organized content
 
 ## Deleterr Architecture
 

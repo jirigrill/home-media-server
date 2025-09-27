@@ -49,4 +49,4 @@ logs/
 .dockerignore
 
 # jellyfin plugins setup
-jellyfin/plugins/
+jellyfin/plugins/CLAUDE.md
