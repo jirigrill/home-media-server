@@ -117,6 +117,9 @@ services:
       - PUID=${PUID}
       - PGID=${PGID}
       - TZ=${TZ}
+      - UMASK=${UMASK:-022}
+      - SONARR_API_KEY=${SONARR_API_KEY}
+      - RADARR_API_KEY=${RADARR_API_KEY}
     mem_limit: ${BAZARR_MEM_LIMIT}
     networks:
       - media_server
@@ -126,6 +129,7 @@ services:
       - bazarr_data:/config
       - ${MOVIES_PATH}:/movies
       - ${SHOWS_PATH}:/shows
+      - ./bazarr/config:/config/config
     depends_on:
       - sonarr
       - radarr
