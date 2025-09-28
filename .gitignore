@@ -1,5 +1,6 @@
 .env
 .claude/
+CLAUDE.md
 
 # Python
 __pycache__/
@@ -51,3 +52,7 @@ logs/
 # jellyfin plugins setup
 jellyfin/plugins/CLAUDE.md
 jellyfin/
+
+# Bazarr runtime config (but keep setup scripts)
+bazarr/config/*
+!bazarr/config/configure-bazarr.sh

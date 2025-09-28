@@ -117,6 +117,9 @@ services:
       - PUID=${PUID}
       - PGID=${PGID}
       - TZ=${TZ}
+      - UMASK=${UMASK:-022}
+      - SONARR_API_KEY=${SONARR_API_KEY}
+      - RADARR_API_KEY=${RADARR_API_KEY}
     mem_limit: ${BAZARR_MEM_LIMIT}
     networks:
       - media_server
@@ -126,6 +129,7 @@ services:
       - bazarr_data:/config
       - ${MOVIES_PATH}:/movies
       - ${SHOWS_PATH}:/shows
+      - ./bazarr/config:/config/config
     depends_on:
       - sonarr
       - radarr
@@ -195,6 +199,49 @@ services:
       - sonarr
       - radarr
 
+  postgres:
+    image: postgres:16-alpine
+    container_name: bitmagnet-postgres
+    hostname: bitmagnet-postgres
+    restart: unless-stopped
+    mem_limit: ${POSTGRES_MEM_LIMIT}
+    environment:
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+    networks:
+      - media_server
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    shm_size: 1g
+
+  bitmagnet:
+    image: ghcr.io/bitmagnet-io/bitmagnet:latest
+    container_name: bitmagnet
+    hostname: bitmagnet
+    restart: unless-stopped
+    mem_limit: ${BITMAGNET_MEM_LIMIT}
+    command:
+      - worker
+      - run
+      - --all
+    environment:
+      - POSTGRES_HOST=bitmagnet-postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - TMDB_API_KEY=${TMDB_API_KEY}
+    networks:
+      - media_server
+    ports:
+      - ${BITMAGNET_PORT}:3333
+      - ${BITMAGNET_DHT_PORT}:3334
+    volumes:
+      - bitmagnet_data:/root/.local/share/bitmagnet
+    depends_on:
+      - postgres
+
 volumes:
   qbittorrent_data:
   jellyfin_data:
@@ -205,6 +252,8 @@ volumes:
   cleanuparr_data:
   deleterr_data:
   huntarr_data:
+  postgres_data:
+  bitmagnet_data:
 
 networks:
   media_server:
