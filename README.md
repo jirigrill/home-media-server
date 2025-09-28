@@ -1,6 +1,6 @@
 # Docker Media Server Stack
 
-A comprehensive media server setup using Docker Compose with 9 services, featuring Jellyfin as the media server along with content acquisition, management, cleanup, and automation tools.
+A comprehensive media server setup using Docker Compose, featuring Jellyfin as the media server along with content acquisition, management, cleanup, and automation tools.
 
 ## Features
 
@@ -13,6 +13,8 @@ A comprehensive media server setup using Docker Compose with 9 services, featuri
 - **Huntarr**: Automated missing content discovery and quality upgrade tool
 - **Cleanuparr**: Automated cleanup tool for managing disk space and old downloads
 - **Deleterr**: Custom webhook service that automatically unmonitors deleted content
+- **Bitmagnet**: Self-hosted torrent indexer with DHT crawling and content classification
+- **PostgreSQL**: Database backend for Bitmagnet's torrent metadata storage
 
 ## Prerequisites
 
@@ -56,6 +58,7 @@ Default ports (configurable in `.env.example`):
 - Huntarr: 9705
 - Cleanuparr: 11011
 - Deleterr: 5000
+- Bitmagnet: 3333 (Web UI), 3334 (DHT)
 
 ## Configuration
 
@@ -97,6 +100,11 @@ Each service requires initial configuration through their respective web interfa
    - Set up libraries pointing to /movies and /shows
    - Configure transcoding settings
    - Create user accounts
+
+6. **Bitmagnet**
+   - Access web interface to monitor indexing progress
+   - Optionally configure TMDB API key for enhanced metadata
+   - Add as Torznab indexer in Sonarr/Radarr (URL: http://bitmagnet:3333/torznab/)
 
 ## Resource Management
 
