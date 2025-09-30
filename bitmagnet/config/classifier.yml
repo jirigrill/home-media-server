@@ -1,0 +1,2 @@
+flags:
+  delete_content_types: [music, audiobook, ebook, comic, software, xxx]
