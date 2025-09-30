@@ -14,7 +14,7 @@ services:
       - WEBUI_PORT=${QBITTORRENT_UI_PORT}
       - TORRENTING_PORT=${QBITTORRENT_TORRENT_PORT}
     volumes:
-      - qbittorrent_data:/config
+      - ./qbittorrent/config:/config
       - ${DOWNLOADS_PATH}:/downloads
     ports:
       - ${QBITTORRENT_UI_PORT}:${QBITTORRENT_UI_PORT}
