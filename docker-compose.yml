@@ -46,6 +46,21 @@ services:
     devices:
       - ${RENDER_DEVICE}:${RENDER_DEVICE}
 
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    container_name: flaresolverr
+    hostname: flaresolverr
+    restart: unless-stopped
+    mem_limit: ${FLARESOLVERR_MEM_LIMIT}
+    environment:
+      - LOG_LEVEL=${FLARESOLVERR_LOG_LEVEL:-info}
+      - LOG_HTML=false
+      - CAPTCHA_SOLVER=none
+      - TZ=${TZ}
+    networks:
+      - media_server
+    ports:
+      - ${FLARESOLVERR_PORT}:8191
 
   prowlarr:
     image: linuxserver/prowlarr:latest

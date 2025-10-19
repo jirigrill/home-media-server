@@ -172,7 +172,7 @@ restore-backup: ## Restore from specific backup file (use BACKUP=filename)
 health: ## Check health of all services
 	@echo "Service Health Check:"
 	@echo "==================="
-	@services="jellyfin qbittorrent prowlarr sonarr radarr bazarr huntarr cleanuparr deleterr bitmagnet postgres"; \
+	@services="jellyfin qbittorrent flaresolverr prowlarr sonarr radarr bazarr huntarr cleanuparr deleterr bitmagnet postgres"; \
 	for service in $$services; do \
 		echo -n "$$service: "; \
 		if docker-compose ps $$service | grep -q "Up"; then \
@@ -230,6 +230,7 @@ quick-start: setup up ## Complete setup and start services
 	@echo "Services will be available at:"
 	@echo "  Jellyfin:     http://localhost:$$(grep JELLYFIN_PORT .env | cut -d= -f2)"
 	@echo "  qBittorrent:  http://localhost:$$(grep QBITTORRENT_UI_PORT .env | cut -d= -f2)"
+	@echo "  FlareSolverr: http://localhost:$$(grep FLARESOLVERR_PORT .env | cut -d= -f2)"
 	@echo "  Prowlarr:     http://localhost:$$(grep PROWLARR_PORT .env | cut -d= -f2)"
 	@echo "  Sonarr:       http://localhost:$$(grep SONARR_PORT .env | cut -d= -f2)"
 	@echo "  Radarr:       http://localhost:$$(grep RADARR_PORT .env | cut -d= -f2)"
