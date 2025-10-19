@@ -245,6 +245,7 @@ services:
     container_name: watchtower
     hostname: watchtower
     restart: unless-stopped
+    mem_limit: ${WATCHTOWER_MEM_LIMIT}
     environment:
       - TZ=${TZ}
       - WATCHTOWER_CLEANUP=true
