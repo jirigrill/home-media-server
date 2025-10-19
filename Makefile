@@ -60,6 +60,10 @@ update: pull ## Update all services (pull + restart)
 	@echo "Updating and restarting services..."
 	docker-compose up -d
 
+update-now: ## Force Watchtower to check for updates immediately
+	@echo "Triggering Watchtower update check..."
+	docker exec watchtower /watchtower --run-once
+
 # Development
 dev: ## Start stack in development mode with build
 	@echo "Starting in development mode..."
@@ -119,17 +123,15 @@ backup: ## Backup configuration data
 	@mkdir -p backups
 	@timestamp=$$(date +%Y%m%d_%H%M%S); \
 	echo "Backing up to backups/media_server_backup_$$timestamp.tar.gz"; \
-	docker run --rm -v media_server_qbittorrent_data:/data/qbittorrent \
-		-v media_server_jellyfin_data:/data/jellyfin \
-		-v media_server_prowlarr_data:/data/prowlarr \
-		-v media_server_sonarr_data:/data/sonarr \
-		-v media_server_radarr_data:/data/radarr \
-		-v media_server_bazarr_data:/data/bazarr \
-		-v media_server_huntarr_data:/data/huntarr \
-		-v media_server_cleanuparr_data:/data/cleanuparr \
-		-v media_server_deleterr_data:/data/deleterr \
-		-v media_server_bitmagnet_data:/data/bitmagnet \
-		-v media_server_postgres_data:/data/postgres \
+	docker run --rm -v home-media-server_qbittorrent_data:/data/qbittorrent \
+		-v home-media-server_jellyfin_data:/data/jellyfin \
+		-v home-media-server_prowlarr_data:/data/prowlarr \
+		-v home-media-server_sonarr_data:/data/sonarr \
+		-v home-media-server_radarr_data:/data/radarr \
+		-v home-media-server_bazarr_data:/data/bazarr \
+		-v home-media-server_huntarr_data:/data/huntarr \
+		-v home-media-server_cleanuparr_data:/data/cleanuparr \
+		-v home-media-server_deleterr_data:/data/deleterr \
 		-v $$(pwd)/backups:/backup \
 		alpine:latest \
 		tar czf /backup/media_server_backup_$$timestamp.tar.gz -C /data .
@@ -150,17 +152,15 @@ restore-backup: ## Restore from specific backup file (use BACKUP=filename)
 	echo; \
 	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
 		docker-compose down; \
-		docker run --rm -v media_server_qbittorrent_data:/data/qbittorrent \
-			-v media_server_jellyfin_data:/data/jellyfin \
-			-v media_server_prowlarr_data:/data/prowlarr \
-			-v media_server_sonarr_data:/data/sonarr \
-			-v media_server_radarr_data:/data/radarr \
-			-v media_server_bazarr_data:/data/bazarr \
-			-v media_server_huntarr_data:/data/huntarr \
-			-v media_server_cleanuparr_data:/data/cleanuparr \
-			-v media_server_deleterr_data:/data/deleterr \
-			-v media_server_bitmagnet_data:/data/bitmagnet \
-			-v media_server_postgres_data:/data/postgres \
+		docker run --rm -v home-media-server_qbittorrent_data:/data/qbittorrent \
+			-v home-media-server_jellyfin_data:/data/jellyfin \
+			-v home-media-server_prowlarr_data:/data/prowlarr \
+			-v home-media-server_sonarr_data:/data/sonarr \
+			-v home-media-server_radarr_data:/data/radarr \
+			-v home-media-server_bazarr_data:/data/bazarr \
+			-v home-media-server_huntarr_data:/data/huntarr \
+			-v home-media-server_cleanuparr_data:/data/cleanuparr \
+			-v home-media-server_deleterr_data:/data/deleterr \
 			-v $$(pwd)/backups:/backup \
 			alpine:latest \
 			tar xzf /backup/$(BACKUP) -C /data; \
@@ -172,7 +172,7 @@ restore-backup: ## Restore from specific backup file (use BACKUP=filename)
 health: ## Check health of all services
 	@echo "Service Health Check:"
 	@echo "==================="
-	@services="jellyfin qbittorrent flaresolverr prowlarr sonarr radarr bazarr huntarr cleanuparr deleterr bitmagnet postgres"; \
+	@services="jellyfin qbittorrent flaresolverr prowlarr sonarr radarr bazarr huntarr cleanuparr deleterr watchtower"; \
 	for service in $$services; do \
 		echo -n "$$service: "; \
 		if docker-compose ps $$service | grep -q "Up"; then \
@@ -238,4 +238,3 @@ quick-start: setup up ## Complete setup and start services
 	@echo "  Huntarr:      http://localhost:$$(grep HUNTARR_PORT .env | cut -d= -f2)"
 	@echo "  Cleanuparr:   http://localhost:$$(grep CLEANUPARR_PORT .env | cut -d= -f2)"
 	@echo "  Deleterr:     http://localhost:$$(grep DELETERR_PORT .env | cut -d= -f2)"
-	@echo "  Bitmagnet:    http://localhost:$$(grep BITMAGNET_PORT .env | cut -d= -f2)"

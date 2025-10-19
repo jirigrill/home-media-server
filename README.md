@@ -16,6 +16,7 @@ A comprehensive media server setup using Docker Compose, featuring Jellyfin as t
 - **Sonarr**: TV shows automation, monitoring, and library management
   - Includes custom ffmpeg installation for sample file detection
 - **Radarr**: Movies automation, monitoring, and library management
+  - Includes custom ffmpeg installation for fake release detection
 - **Bazarr**: Subtitles automation and management
 
 ### Automation & Maintenance
@@ -23,7 +24,8 @@ A comprehensive media server setup using Docker Compose, featuring Jellyfin as t
 - **Cleanuparr**: Automated cleanup tool for managing disk space and stuck downloads
   - **QueueCleaner**: Removes stalled/failed downloads from Sonarr/Radarr queue
   - **DownloadCleaner**: Manages orphaned torrents in qBittorrent
-- **Deleterr**: Custom webhook service that automatically unmonitors deleted content from Sonarr/Radarr
+- **Deleterr**: Custom webhook service that automatically deletes content from Sonarr/Radarr when removed from Jellyfin
+- **Watchtower**: Automatic container updater that keeps all services up-to-date with the latest releases
 
 ## Prerequisites
 
@@ -105,7 +107,7 @@ Each service requires initial configuration through their respective web interfa
    - Configure download clients (QBittorrent)
    - Set up quality profiles
    - Connect to Prowlarr for indexers
-   - **Note**: Sonarr automatically installs ffmpeg on startup for sample file detection
+   - **Note**: Both Sonarr and Radarr automatically install ffmpeg on startup for sample/fake file detection
 
 5. **Bazarr**
    - Configure subtitle languages
@@ -130,17 +132,19 @@ Each service requires initial configuration through their respective web interfa
 
 ## Special Features
 
-### Sonarr - Automatic ffmpeg Installation
+### Sonarr & Radarr - Automatic ffmpeg Installation
 
-Sonarr requires ffmpeg/ffprobe to detect sample files and prevent importing fake releases. This stack includes a custom initialization script that automatically installs ffmpeg on every Sonarr container startup.
+Both Sonarr and Radarr require ffmpeg/ffprobe to detect sample files and prevent importing fake releases. This stack includes custom initialization scripts that automatically install ffmpeg on every container startup.
 
-**Location**: `./sonarr/custom-cont-init.d/install-ffmpeg.sh`
+**Locations**:
+- `./sonarr/custom-cont-init.d/install-ffmpeg.sh`
+- `./radarr/custom-cont-init.d/install-ffmpeg.sh`
 
-The script:
-- Runs automatically on container startup
-- Checks if ffmpeg is already installed
-- Installs ffmpeg via Alpine's package manager if needed
-- Survives container recreations and updates
+The scripts:
+- Run automatically on container startup
+- Check if ffmpeg is already installed
+- Install ffmpeg via Alpine's package manager if needed
+- Survive container recreations and updates
 
 No manual configuration required - it just works!
 
@@ -160,6 +164,35 @@ Cleanuparr provides comprehensive cleanup with two independent systems:
 - Monitors categories: `radarr`, `sonarr`, `tv-sonarr`
 - Runs hourly to keep your download client clean
 
+### Deleterr - Smart Content Deletion
+
+Deleterr automatically manages content removal when you delete items from Jellyfin:
+
+**For Movies**:
+- Completely removes the movie from Radarr
+- Deletes all metadata files (posters, backdrops, .nfo files)
+- Removes the entire movie folder
+
+**For TV Shows**:
+- Deletes the episode file from disk
+- Unmonitors the episode to prevent re-download
+- If series has ended AND it was the last episode → Deletes entire series from Sonarr
+- If series is continuing or has other episodes → Keeps series in Sonarr
+
+**Webhook Configuration**: Point Jellyfin's ItemRemoved webhook to `http://deleterr:5000/delete`
+
+### Watchtower - Automatic Updates
+
+Watchtower keeps your media server up-to-date automatically:
+
+- Runs daily at 4 AM (configurable via `WATCHTOWER_SCHEDULE` in `.env`)
+- Checks Docker Hub for new image versions
+- Automatically updates and restarts containers when new versions are available
+- Removes old Docker images after successful updates
+- Can be triggered manually with `make update-now`
+
+All services are configured with Watchtower labels for automatic updates.
+
 ## Resource Management
 
 - Memory limits are configurable through environment variables in the `.env` file (see `.env.example` for defaults)
@@ -176,10 +209,17 @@ Important data to backup:
 
 ### Updates
 
-Update container images:
+**Automatic Updates** (via Watchtower):
+- Updates run automatically daily at 4 AM
+- Configure schedule in `.env` with `WATCHTOWER_SCHEDULE`
+- Force immediate update check: `make update-now`
+
+**Manual Updates**:
 ```bash
 docker-compose pull
 docker-compose up -d
+# Or use the Makefile
+make update
 ```
 
 ## Troubleshooting

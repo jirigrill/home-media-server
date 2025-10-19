@@ -20,6 +20,8 @@ services:
       - ${QBITTORRENT_UI_PORT}:${QBITTORRENT_UI_PORT}
       - ${QBITTORRENT_TORRENT_PORT}:${QBITTORRENT_TORRENT_PORT}
       - ${QBITTORRENT_TORRENT_PORT}:${QBITTORRENT_TORRENT_PORT}/udp
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
 
   jellyfin:
     image: jellyfin/jellyfin:latest
@@ -45,6 +47,8 @@ services:
       - ./jellyfin/plugins:/config/plugins
     devices:
       - ${RENDER_DEVICE}:${RENDER_DEVICE}
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
 
   flaresolverr:
     image: ghcr.io/flaresolverr/flaresolverr:latest
@@ -62,6 +66,9 @@ services:
     ports:
       - ${FLARESOLVERR_PORT}:8191
 
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
   prowlarr:
     image: linuxserver/prowlarr:latest
     container_name: prowlarr
@@ -78,6 +85,9 @@ services:
       - ${PROWLARR_PORT}:9696
     volumes:
       - prowlarr_data:/config
+
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
 
   sonarr:
     image: lscr.io/linuxserver/sonarr:latest
@@ -102,6 +112,9 @@ services:
       - prowlarr
       - qbittorrent
 
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
   radarr:
     image: lscr.io/linuxserver/radarr:latest
     container_name: radarr
@@ -124,6 +137,9 @@ services:
     depends_on:
       - prowlarr
       - qbittorrent
+
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
 
   bazarr:
     image: lscr.io/linuxserver/bazarr:latest
@@ -151,6 +167,9 @@ services:
       - sonarr
       - radarr
 
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
   cleanuparr:
     image: ghcr.io/cleanuparr/cleanuparr:latest
     container_name: cleanuparr
@@ -172,6 +191,9 @@ services:
       - sonarr
       - radarr
       - qbittorrent
+
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
 
   deleterr:
     build: ./deleterr
@@ -215,6 +237,28 @@ services:
     depends_on:
       - sonarr
       - radarr
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: watchtower
+    hostname: watchtower
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ}
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_LABEL_ENABLE=true
+      - WATCHTOWER_INCLUDE_RESTARTING=true
+      - WATCHTOWER_SCHEDULE=${WATCHTOWER_SCHEDULE:-0 0 4 * * *}
+      - WATCHTOWER_NOTIFICATIONS=${WATCHTOWER_NOTIFICATIONS:-}
+      - WATCHTOWER_NOTIFICATION_URL=${WATCHTOWER_NOTIFICATION_URL:-}
+    networks:
+      - media_server
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
 
 volumes:
   qbittorrent_data:
