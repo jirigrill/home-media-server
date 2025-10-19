@@ -4,17 +4,26 @@ A comprehensive media server setup using Docker Compose, featuring Jellyfin as t
 
 ## Features
 
+### Media Streaming
 - **Jellyfin**: Media streaming server with hardware transcoding support
+
+### Content Acquisition
 - **QBittorrent**: Torrent client with web interface
-- **Prowlarr**: Indexer manager/proxy for coordinating searches
-- **Sonarr**: TV shows automation and management
-- **Radarr**: Movies automation and management
+- **Prowlarr**: Indexer manager/proxy for coordinating searches across torrent sites
+- **FlareSolverr**: Proxy server to bypass Cloudflare and DDoS-GUARD protection on indexers
+
+### Content Management (*arr Suite)
+- **Sonarr**: TV shows automation, monitoring, and library management
+  - Includes custom ffmpeg installation for sample file detection
+- **Radarr**: Movies automation, monitoring, and library management
 - **Bazarr**: Subtitles automation and management
+
+### Automation & Maintenance
 - **Huntarr**: Automated missing content discovery and quality upgrade tool
-- **Cleanuparr**: Automated cleanup tool for managing disk space and old downloads
-- **Deleterr**: Custom webhook service that automatically unmonitors deleted content
-- **Bitmagnet**: Self-hosted torrent indexer with DHT crawling and content classification
-- **PostgreSQL**: Database backend for Bitmagnet's torrent metadata storage
+- **Cleanuparr**: Automated cleanup tool for managing disk space and stuck downloads
+  - **QueueCleaner**: Removes stalled/failed downloads from Sonarr/Radarr queue
+  - **DownloadCleaner**: Manages orphaned torrents in qBittorrent
+- **Deleterr**: Custom webhook service that automatically unmonitors deleted content from Sonarr/Radarr
 
 ## Prerequisites
 
@@ -48,9 +57,10 @@ docker-compose up -d
 
 ## Service Access
 
-Default ports (configurable in `.env.example`):
+Default ports (configurable in `.env`):
 - Jellyfin: 8096
 - QBittorrent: 8080 (Web UI), 6881 (Torrenting)
+- FlareSolverr: 8191
 - Prowlarr: 9696
 - Sonarr: 8989
 - Radarr: 7878
@@ -58,7 +68,6 @@ Default ports (configurable in `.env.example`):
 - Huntarr: 9705
 - Cleanuparr: 11011
 - Deleterr: 5000
-- Bitmagnet: 3333 (Web UI), 3334 (DHT)
 
 ## Configuration
 
@@ -81,30 +90,75 @@ Each service requires initial configuration through their respective web interfa
 1. **QBittorrent**
    - Configure default credentials
    - Set up download paths and connection settings
+   - Configure categories (e.g., `sonarr`, `radarr`, `tv-sonarr`)
 
-2. **Prowlarr**
+2. **FlareSolverr**
+   - No configuration needed - automatically used by Prowlarr
+   - Provides Cloudflare bypass for protected indexers
+
+3. **Prowlarr**
    - Add and configure indexers
    - Set up connections to Sonarr and Radarr
+   - Configure FlareSolverr proxy for protected indexers (URL: http://flaresolverr:8191)
 
-3. **Sonarr/Radarr**
+4. **Sonarr/Radarr**
    - Configure download clients (QBittorrent)
    - Set up quality profiles
    - Connect to Prowlarr for indexers
+   - **Note**: Sonarr automatically installs ffmpeg on startup for sample file detection
 
-4. **Bazarr**
+5. **Bazarr**
    - Configure subtitle languages
    - Connect to Sonarr and Radarr
    - Set up subtitle providers
 
-5. **Jellyfin**
+6. **Cleanuparr**
+   - Configure QueueCleaner settings (strike limits, cleanup rules)
+   - Configure DownloadCleaner to monitor qBittorrent categories
+   - Set up notifications (optional)
+
+7. **Deleterr**
+   - Configure Jellyfin webhook: Point to `http://deleterr:5000/delete`
+   - Event: ItemRemoved
+   - No other configuration needed (uses Sonarr/Radarr API keys from environment)
+
+8. **Jellyfin**
    - Set up libraries pointing to /movies and /shows
    - Configure transcoding settings
    - Create user accounts
+   - Set up webhook for Deleterr integration
 
-6. **Bitmagnet**
-   - Access web interface to monitor indexing progress
-   - Optionally configure TMDB API key for enhanced metadata
-   - Add as Torznab indexer in Sonarr/Radarr (URL: http://bitmagnet:3333/torznab/)
+## Special Features
+
+### Sonarr - Automatic ffmpeg Installation
+
+Sonarr requires ffmpeg/ffprobe to detect sample files and prevent importing fake releases. This stack includes a custom initialization script that automatically installs ffmpeg on every Sonarr container startup.
+
+**Location**: `./sonarr/custom-cont-init.d/install-ffmpeg.sh`
+
+The script:
+- Runs automatically on container startup
+- Checks if ffmpeg is already installed
+- Installs ffmpeg via Alpine's package manager if needed
+- Survives container recreations and updates
+
+No manual configuration required - it just works!
+
+### Cleanuparr - Dual Cleanup System
+
+Cleanuparr provides comprehensive cleanup with two independent systems:
+
+**QueueCleaner**:
+- Monitors Sonarr/Radarr download queues
+- Removes stuck/stalled downloads automatically
+- Uses a 3-strike system before removal
+- Triggers automatic re-searches
+
+**DownloadCleaner**:
+- Finds orphaned torrents in qBittorrent
+- Moves unlinked downloads to `cleanuparr-unlinked` category
+- Monitors categories: `radarr`, `sonarr`, `tv-sonarr`
+- Runs hourly to keep your download client clean
 
 ## Resource Management
 

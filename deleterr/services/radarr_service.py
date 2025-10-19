@@ -20,33 +20,31 @@ class RadarrService(ArrService):
         return response is not None
     
     def unmonitor_item(self, item: MediaItem) -> bool:
-        """Unmonitor a movie"""
+        """Delete a movie completely from Radarr"""
         if item.media_type != MediaType.MOVIE:
-            logger.warning(f"RadarrService can only unmonitor movies, got {item.media_type}")
+            logger.warning(f"RadarrService can only delete movies, got {item.media_type}")
             return False
-        
+
         try:
             # Find movie
             movie_id = self._find_movie(item.movie_title, item.year)
             if not movie_id:
                 return False
-            
-            # Get the full movie object first
-            movie_response = self._make_request(f'movie/{movie_id}')
-            if not movie_response:
-                return False
-            
-            movie_data = movie_response.json()
-            movie_data['monitored'] = False
-            
-            # Update the movie with monitored=False
-            response = self._make_request(f'movie/{movie_id}', method='PUT', data=movie_data)
+
+            # Delete the movie with deleteFiles=true to remove all metadata and folder
+            # addImportExclusion=false allows the movie to be re-added later if needed
+            params = {
+                'deleteFiles': 'true',
+                'addImportExclusion': 'false'
+            }
+
+            response = self._make_request(f'movie/{movie_id}', method='DELETE', params=params)
             if response:
-                logger.info(f"Successfully unmonitored movie: {item}")
+                logger.info(f"Successfully deleted movie from Radarr: {item}")
                 return True
             return False
         except Exception as e:
-            logger.error(f"Error unmonitoring movie {item}: {e}")
+            logger.error(f"Error deleting movie {item}: {e}")
             return False
     
     def _find_movie(self, movie_title: str, year: Optional[int] = None) -> Optional[int]:

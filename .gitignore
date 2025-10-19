@@ -56,3 +56,6 @@ jellyfin/
 # Bazarr runtime config (but keep setup scripts)
 bazarr/config/*
 !bazarr/config/configure-bazarr.sh
+
+# qbittorrent config (all runtime configs)
+qbittorrent/config/
