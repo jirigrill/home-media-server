@@ -54,14 +54,14 @@ def handle_deletion():
         if not data:
             logger.warning("Received empty webhook data")
             return jsonify({'status': 'error', 'message': 'Empty data'}), 400
-        
-        logger.info(f"Received deletion webhook: {data.get('NotificationType', 'Unknown')}")
-        logger.info(f"Full webhook data: {data}")
-        
+
+        logger.info(f"Received deletion webhook: {data.get('NotificationType', 'Unknown')} - {data.get('Name', 'Unknown')}")
+
         # Only process item removal events
-        if data.get('NotificationType') != 'ItemDeleted':
-            logger.debug("Ignoring non-removal webhook")
-            return jsonify({'status': 'ignored', 'message': 'Not an item removal event'})
+        notification_type = data.get('NotificationType')
+        if notification_type not in ['ItemDeleted', 'ItemRemoved', 'Item Deleted', 'Item Removed']:
+            logger.warning(f"Ignoring non-removal webhook - NotificationType: {notification_type}")
+            return jsonify({'status': 'ignored', 'message': f'Not an item removal event (got: {notification_type})'})
         
         # Process the removal
         success = webhook_processor.process_removal(data)

@@ -40,7 +40,10 @@ class SonarrService(ArrService):
             success = self._delete_and_unmonitor_episode(episode_id, item)
 
             if success:
-                # Check if we should delete the entire series
+                # Check if season should be unmonitored (all episodes deleted)
+                self._check_and_unmonitor_season_if_empty(series_id, item.season)
+
+                # Check if we should delete the entire series (if ended and no files left)
                 self._check_and_delete_series_if_ended(series_id, item)
 
             return success
