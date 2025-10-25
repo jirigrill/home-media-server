@@ -24,7 +24,7 @@ services:
       - "com.centurylinklabs.watchtower.enable=true"
 
   jellyfin:
-    image: jellyfin/jellyfin:latest
+    image: jellyfin/jellyfin:10.10.3
     container_name: jellyfin
     hostname: jellyfin
     restart: unless-stopped
@@ -41,7 +41,7 @@ services:
       - ${RENDER_GROUP}
     volumes:
       - jellyfin_data:/config
-      - jellyfin_data:/cache
+      - jellyfin_cache:/cache
       - ${SHOWS_PATH}:/shows
       - ${MOVIES_PATH}:/movies
       - ./jellyfin/plugins:/config/plugins
@@ -264,6 +264,7 @@ services:
 volumes:
   qbittorrent_data:
   jellyfin_data:
+  jellyfin_cache:
   prowlarr_data:
   sonarr_data:
   radarr_data:
