@@ -47,7 +47,12 @@ class MediaParser:
             season_number = webhook_data.get('SeasonNumber')
             episode_number = webhook_data.get('EpisodeNumber')
 
-            logger.debug(f"Parsing episode webhook - Series: {series_name}, Season: {season_number}, Episode: {episode_number}")
+            # Extract external provider IDs (support both Jellyfin webhook format and API format)
+            imdb_id = webhook_data.get('Provider_imdb') or webhook_data.get('ImdbId') or webhook_data.get('imdbId')
+            tvdb_id = webhook_data.get('Provider_tvdb') or webhook_data.get('TvdbId') or webhook_data.get('tvdbId')
+            tmdb_id = webhook_data.get('Provider_tmdb') or webhook_data.get('TmdbId') or webhook_data.get('tmdbId')
+
+            logger.debug(f"Parsing episode webhook - Series: {series_name}, Season: {season_number}, Episode: {episode_number}, TVDB: {tvdb_id}, IMDB: {imdb_id}, TMDB: {tmdb_id}")
 
             # If structured data is available, use it
             if series_name and season_number is not None and episode_number is not None:
@@ -57,7 +62,10 @@ class MediaParser:
                     media_type=MediaType.EPISODE,
                     title=series_name,
                     season=int(season_number),
-                    episode=int(episode_number)
+                    episode=int(episode_number),
+                    imdb_id=imdb_id,
+                    tvdb_id=tvdb_id,
+                    tmdb_id=tmdb_id
                 )
 
             # Fallback to parsing from item name
@@ -67,7 +75,7 @@ class MediaParser:
 
             logger.warning("Could not parse episode information from webhook")
             return None
-        
+
         except Exception as e:
             logger.error(f"Error parsing episode webhook: {e}")
             return None
@@ -78,6 +86,11 @@ class MediaParser:
         try:
             movie_title = webhook_data.get('Name', '')
             year = webhook_data.get('Year')
+
+            # Extract external provider IDs (support both Jellyfin webhook format and API format)
+            imdb_id = webhook_data.get('Provider_imdb') or webhook_data.get('ImdbId') or webhook_data.get('imdbId')
+            tvdb_id = webhook_data.get('Provider_tvdb') or webhook_data.get('TvdbId') or webhook_data.get('tvdbId')
+            tmdb_id = webhook_data.get('Provider_tmdb') or webhook_data.get('TmdbId') or webhook_data.get('tmdbId')
 
             if not movie_title:
                 logger.warning("No movie title in webhook data")
@@ -94,12 +107,17 @@ class MediaParser:
                 except (ValueError, TypeError):
                     logger.warning(f"Invalid year format: {year}")
 
+            logger.debug(f"Parsing movie webhook - Title: {movie_title}, Year: {parsed_year}, IMDB: {imdb_id}, TMDB: {tmdb_id}")
+
             return MediaItem(
                 media_type=MediaType.MOVIE,
                 title=movie_title,
-                year=parsed_year
+                year=parsed_year,
+                imdb_id=imdb_id,
+                tvdb_id=tvdb_id,
+                tmdb_id=tmdb_id
             )
-        
+
         except Exception as e:
             logger.error(f"Error parsing movie webhook: {e}")
             return None

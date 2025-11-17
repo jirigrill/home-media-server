@@ -44,6 +44,8 @@ services:
       - jellyfin_cache:/cache
       - ${SHOWS_PATH}:/shows
       - ${MOVIES_PATH}:/movies
+      - ${KIDS_SHOWS_PATH}:/kids_shows
+      - ${KIDS_MOVIES_PATH}:/kids_movies
       - ./jellyfin/plugins:/config/plugins
     devices:
       - ${RENDER_DEVICE}:${RENDER_DEVICE}
@@ -106,6 +108,7 @@ services:
     volumes:
       - sonarr_data:/config
       - ${SHOWS_PATH}:/shows
+      - ${KIDS_SHOWS_PATH}:/kids_shows
       - ${DOWNLOADS_PATH}:/downloads
       - ./sonarr/custom-cont-init.d:/custom-cont-init.d:ro
     depends_on:
@@ -132,6 +135,7 @@ services:
     volumes:
       - radarr_data:/config
       - ${MOVIES_PATH}:/movies
+      - ${KIDS_MOVIES_PATH}:/kids_movies
       - ${DOWNLOADS_PATH}:/downloads
       - ./radarr/custom-cont-init.d:/custom-cont-init.d:ro
     depends_on:
@@ -162,6 +166,8 @@ services:
       - bazarr_data:/config
       - ${MOVIES_PATH}:/movies
       - ${SHOWS_PATH}:/shows
+      - ${KIDS_MOVIES_PATH}:/kids_movies
+      - ${KIDS_SHOWS_PATH}:/kids_shows
       - ./bazarr/config:/config/config
     depends_on:
       - sonarr

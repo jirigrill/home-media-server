@@ -3,6 +3,7 @@ Sonarr API service
 """
 
 import logging
+import re
 from typing import Optional
 
 from models.media_item import MediaItem, MediaType
@@ -18,7 +19,7 @@ class SonarrService(ArrService):
         """Test Sonarr API connection"""
         response = self._make_request('system/status')
         return response is not None
-    
+
     def unmonitor_item(self, item: MediaItem) -> bool:
         """Delete episode and clean up if it's the last one"""
         if item.media_type != MediaType.EPISODE:
@@ -26,9 +27,22 @@ class SonarrService(ArrService):
             return False
 
         try:
-            # Find series
-            series_id = self._find_series(item.series_name)
+            # Find series - try external IDs first (faster and more reliable), then fallback to name
+            external_ids = [
+                ('tvdb', item.tvdb_id),  # Primary for TV shows
+                ('imdb', item.imdb_id),  # Fallback
+                ('tmdb', item.tmdb_id),  # Fallback
+            ]
+
+            series_id = self._try_external_id_lookups('series/lookup', external_ids)
+
+            # Fallback to name-based search if all ID lookups fail
             if not series_id:
+                logger.info(f"External ID lookups failed, falling back to name search for: {item.series_name}")
+                series_id = self._find_series_by_name(item.series_name)
+
+            if not series_id:
+                logger.error(f"Could not find series for {item} in Sonarr")
                 return False
 
             # Find episode
@@ -51,36 +65,41 @@ class SonarrService(ArrService):
             logger.error(f"Error processing episode {item}: {e}")
             return False
     
-    def _find_series(self, series_name: str) -> Optional[int]:
-        """Find series ID by name with fuzzy matching"""
-        response = self._make_request('series')
-        if not response:
+    def _find_series_by_name(self, series_name: str) -> Optional[int]:
+        """
+        Find series ID by name using lookup API (fallback when external IDs unavailable).
+        Uses fuzzy matching to handle name variations.
+        """
+        if not series_name:
             return None
-        
-        series_list = response.json()
+
+        # Use base class method to get lookup results
+        results = self._lookup_by_name('series/lookup', series_name)
+        if not results:
+            return None
+
         series_name_clean = self._clean_series_name(series_name)
-        
-        # First try exact match
-        for series in series_list:
-            if series['title'].lower() == series_name.lower():
-                logger.debug(f"Found exact match for series '{series_name}' with ID {series['id']}")
-                return series['id']
-        
-        # Then try fuzzy matching
-        for series in series_list:
-            sonarr_title_clean = self._clean_series_name(series['title'])
-            if sonarr_title_clean == series_name_clean:
-                logger.debug(f"Found fuzzy match for series '{series_name}' -> '{series['title']}' with ID {series['id']}")
-                return series['id']
-        
-        # Log available series for debugging
-        available_series = [s['title'] for s in series_list]
-        logger.warning(f"Series '{series_name}' not found in Sonarr. Available series: {available_series[:10]}{'...' if len(available_series) > 10 else ''}")
+
+        # First try exact match on results that are already in library
+        for result in results:
+            if result.get('id'):  # Has ID = already in library
+                if result['title'].lower() == series_name.lower():
+                    logger.info(f"Found exact name match for '{series_name}' with ID {result['id']}")
+                    return result['id']
+
+        # Then try fuzzy matching on results in library
+        for result in results:
+            if result.get('id'):  # Has ID = already in library
+                result_title_clean = self._clean_series_name(result['title'])
+                if result_title_clean == series_name_clean:
+                    logger.info(f"Found fuzzy name match for '{series_name}' -> '{result['title']}' with ID {result['id']}")
+                    return result['id']
+
+        logger.warning(f"Series '{series_name}' not found in Sonarr library (searched by name)")
         return None
     
     def _clean_series_name(self, name: str) -> str:
         """Clean series name for fuzzy matching"""
-        import re
         # Remove common variations: years, special chars, extra spaces
         cleaned = re.sub(r'\s*\(\d{4}\)\s*', '', name)  # Remove (YYYY)
         cleaned = re.sub(r'\s*\[\d{4}\]\s*', '', cleaned)  # Remove [YYYY]
@@ -180,49 +199,43 @@ class SonarrService(ArrService):
             logger.error(f"Error checking/deleting series: {e}")
     
     def _check_and_unmonitor_season_if_empty(self, series_id: int, season_number: int) -> None:
-        """Check if season has no monitored episodes and unmonitor season if empty"""
+        """
+        Check if all episodes in a season are unmonitored, and if so, unmonitor the season itself.
+        Combines checking and unmonitoring logic into a single method.
+        """
         try:
-            if self._is_season_completely_unmonitored(series_id, season_number):
-                logger.info(f"All episodes in season {season_number} are unmonitored, unmonitoring season")
-                self._unmonitor_season(series_id, season_number)
-        except Exception as e:
-            logger.error(f"Error checking/unmonitoring season {season_number}: {e}")
-    
-    def _is_season_completely_unmonitored(self, series_id: int, season_number: int) -> bool:
-        """Check if all episodes in a season are unmonitored"""
-        try:
+            # Fetch all episodes for the series
             response = self._make_request('episode', params={'seriesId': series_id})
             if not response:
-                return False
-            
+                return
+
             episodes = response.json()
             season_episodes = [ep for ep in episodes if ep['seasonNumber'] == season_number]
-            
+
             if not season_episodes:
                 logger.debug(f"No episodes found for season {season_number}")
-                return False
-            
+                return
+
             # Check if all episodes in the season are unmonitored
             monitored_episodes = [ep for ep in season_episodes if ep.get('monitored', True)]
-            
+
             logger.debug(f"Season {season_number}: {len(season_episodes)} total episodes, {len(monitored_episodes)} monitored")
-            return len(monitored_episodes) == 0
-            
-        except Exception as e:
-            logger.error(f"Error checking season {season_number} monitoring status: {e}")
-            return False
-    
-    def _unmonitor_season(self, series_id: int, season_number: int) -> bool:
-        """Unmonitor a specific season"""
-        try:
+
+            # If there are still monitored episodes, don't unmonitor the season
+            if len(monitored_episodes) > 0:
+                return
+
+            # All episodes are unmonitored, so unmonitor the season
+            logger.info(f"All episodes in season {season_number} are unmonitored, unmonitoring season")
+
             # Get series data to modify season monitoring
-            response = self._make_request(f'series/{series_id}')
-            if not response:
-                return False
-            
-            series_data = response.json()
+            series_response = self._make_request(f'series/{series_id}')
+            if not series_response:
+                return
+
+            series_data = series_response.json()
             seasons = series_data.get('seasons', [])
-            
+
             # Find and unmonitor the specific season
             season_updated = False
             for season in seasons:
@@ -232,20 +245,17 @@ class SonarrService(ArrService):
                         season_updated = True
                         logger.debug(f"Marking season {season_number} as unmonitored")
                     break
-            
+
             if not season_updated:
                 logger.debug(f"Season {season_number} was already unmonitored or not found")
-                return True
-            
+                return
+
             # Update the series with modified season monitoring
-            response = self._make_request(f'series/{series_id}', method='PUT', data=series_data)
-            if response:
+            update_response = self._make_request(f'series/{series_id}', method='PUT', data=series_data)
+            if update_response:
                 logger.info(f"Successfully unmonitored season {season_number} for series ID {series_id}")
-                return True
             else:
                 logger.error(f"Failed to update season monitoring for series ID {series_id}")
-                return False
-                
+
         except Exception as e:
-            logger.error(f"Error unmonitoring season {season_number}: {e}")
-            return False
+            logger.error(f"Error checking/unmonitoring season {season_number}: {e}")

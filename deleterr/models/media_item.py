@@ -21,6 +21,10 @@ class MediaItem:
     season: Optional[int] = None
     episode: Optional[int] = None
     year: Optional[int] = None
+    # External provider IDs for more reliable matching
+    imdb_id: Optional[str] = None
+    tvdb_id: Optional[str] = None
+    tmdb_id: Optional[str] = None
     
     def __post_init__(self):
         """Validate media item after initialization"""

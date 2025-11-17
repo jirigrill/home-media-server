@@ -19,7 +19,7 @@ config = Config.from_env()
 # Setup logging
 os.makedirs(os.path.dirname(config.log_file), exist_ok=True)
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.FileHandler(config.log_file),
