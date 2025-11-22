@@ -21,13 +21,22 @@ class SonarrService(ArrService):
         return response is not None
 
     def unmonitor_item(self, item: MediaItem) -> bool:
-        """Delete episode and clean up if it's the last one"""
-        if item.media_type != MediaType.EPISODE:
-            logger.warning(f"SonarrService can only process episodes, got {item.media_type}")
+        """Delete episode/season/TV show and clean up as needed"""
+        if item.media_type == MediaType.TV_SHOW:
+            return self._delete_tv_show(item)
+        elif item.media_type == MediaType.SEASON:
+            return self._delete_season(item)
+        elif item.media_type == MediaType.EPISODE:
+            return self._process_episode(item)
+        else:
+            logger.warning(f"SonarrService can only process TV shows, seasons, and episodes, got {item.media_type}")
             return False
 
+    def _process_episode(self, item: MediaItem) -> bool:
+        """Delete episode and clean up if it's the last one"""
         try:
-            # Find series - try external IDs first (faster and more reliable), then fallback to name
+            # Find series using external IDs (TVDB, IMDB, TMDB)
+            # These should be series-level IDs enriched from Jellyfin API via SeriesId
             external_ids = [
                 ('tvdb', item.tvdb_id),  # Primary for TV shows
                 ('imdb', item.imdb_id),  # Fallback
@@ -36,13 +45,8 @@ class SonarrService(ArrService):
 
             series_id = self._try_external_id_lookups('series/lookup', external_ids)
 
-            # Fallback to name-based search if all ID lookups fail
             if not series_id:
-                logger.info(f"External ID lookups failed, falling back to name search for: {item.series_name}")
-                series_id = self._find_series_by_name(item.series_name)
-
-            if not series_id:
-                logger.error(f"Could not find series for {item} in Sonarr")
+                logger.error(f"Could not find series for {item} in Sonarr using external IDs (TVDB: {item.tvdb_id}, IMDB: {item.imdb_id}, TMDB: {item.tmdb_id}). Ensure SeriesId is in webhook and Jellyfin API is accessible.")
                 return False
 
             # Find episode
@@ -57,55 +61,15 @@ class SonarrService(ArrService):
                 # Check if season should be unmonitored (all episodes deleted)
                 self._check_and_unmonitor_season_if_empty(series_id, item.season)
 
-                # Check if we should delete the entire series (if ended and no files left)
-                self._check_and_delete_series_if_ended(series_id, item)
+                # NOTE: We do NOT auto-delete the series when processing individual episodes
+                # Series deletion should only happen when user explicitly deletes the TV show from Jellyfin
+                # (which sends a TV_SHOW webhook) to avoid accidentally removing ongoing series
 
             return success
         except Exception as e:
             logger.error(f"Error processing episode {item}: {e}")
             return False
     
-    def _find_series_by_name(self, series_name: str) -> Optional[int]:
-        """
-        Find series ID by name using lookup API (fallback when external IDs unavailable).
-        Uses fuzzy matching to handle name variations.
-        """
-        if not series_name:
-            return None
-
-        # Use base class method to get lookup results
-        results = self._lookup_by_name('series/lookup', series_name)
-        if not results:
-            return None
-
-        series_name_clean = self._clean_series_name(series_name)
-
-        # First try exact match on results that are already in library
-        for result in results:
-            if result.get('id'):  # Has ID = already in library
-                if result['title'].lower() == series_name.lower():
-                    logger.info(f"Found exact name match for '{series_name}' with ID {result['id']}")
-                    return result['id']
-
-        # Then try fuzzy matching on results in library
-        for result in results:
-            if result.get('id'):  # Has ID = already in library
-                result_title_clean = self._clean_series_name(result['title'])
-                if result_title_clean == series_name_clean:
-                    logger.info(f"Found fuzzy name match for '{series_name}' -> '{result['title']}' with ID {result['id']}")
-                    return result['id']
-
-        logger.warning(f"Series '{series_name}' not found in Sonarr library (searched by name)")
-        return None
-    
-    def _clean_series_name(self, name: str) -> str:
-        """Clean series name for fuzzy matching"""
-        # Remove common variations: years, special chars, extra spaces
-        cleaned = re.sub(r'\s*\(\d{4}\)\s*', '', name)  # Remove (YYYY)
-        cleaned = re.sub(r'\s*\[\d{4}\]\s*', '', cleaned)  # Remove [YYYY]
-        cleaned = re.sub(r'[^\w\s]', '', cleaned)  # Remove special chars
-        cleaned = re.sub(r'\s+', ' ', cleaned).strip().lower()  # Normalize spaces
-        return cleaned
     
     def _find_episode(self, series_id: int, season_number: int, episode_number: int) -> Optional[int]:
         """Find episode ID by series ID, season, and episode number"""
@@ -259,3 +223,99 @@ class SonarrService(ArrService):
 
         except Exception as e:
             logger.error(f"Error checking/unmonitoring season {season_number}: {e}")
+
+    def _delete_tv_show(self, item: MediaItem) -> bool:
+        """Delete entire TV show from Sonarr"""
+        try:
+            # Find series using external IDs (TVDB, IMDB, TMDB)
+            external_ids = [
+                ('tvdb', item.tvdb_id),  # Primary for TV shows
+                ('imdb', item.imdb_id),  # Fallback
+                ('tmdb', item.tmdb_id),  # Fallback
+            ]
+
+            series_id = self._try_external_id_lookups('series/lookup', external_ids)
+
+            if not series_id:
+                logger.error(f"Could not find TV show '{item.title}' in Sonarr using external IDs (TVDB: {item.tvdb_id}, IMDB: {item.imdb_id}, TMDB: {item.tmdb_id})")
+                return False
+
+            # Delete the entire series
+            params = {
+                'deleteFiles': 'true',  # Delete all files
+                'addImportListExclusion': 'false'  # Allow re-adding if needed
+            }
+
+            response = self._make_request(f'series/{series_id}', method='DELETE', params=params)
+            if response:
+                logger.info(f"Successfully deleted TV show from Sonarr: {item}")
+                return True
+            else:
+                logger.error(f"Failed to delete TV show '{item.title}' from Sonarr")
+                return False
+
+        except Exception as e:
+            logger.error(f"Error deleting TV show {item}: {e}")
+            return False
+
+    def _delete_season(self, item: MediaItem) -> bool:
+        """Delete all episodes in a season and unmonitor it"""
+        try:
+            # Find series using external IDs (TVDB, IMDB, TMDB)
+            # These should be series-level IDs enriched from Jellyfin API via SeriesId
+            external_ids = [
+                ('tvdb', item.tvdb_id),  # Primary for TV shows
+                ('imdb', item.imdb_id),  # Fallback
+                ('tmdb', item.tmdb_id),  # Fallback
+            ]
+
+            series_id = self._try_external_id_lookups('series/lookup', external_ids)
+
+            if not series_id:
+                logger.error(f"Could not find TV show '{item.title}' in Sonarr using external IDs (TVDB: {item.tvdb_id}, IMDB: {item.imdb_id}, TMDB: {item.tmdb_id}). Ensure SeriesId is in webhook and Jellyfin API is accessible.")
+                return False
+
+            # Get all episodes for this series
+            episodes_response = self._make_request('episode', params={'seriesId': series_id})
+            if not episodes_response:
+                return False
+
+            episodes = episodes_response.json()
+            season_episodes = [ep for ep in episodes if ep['seasonNumber'] == item.season]
+
+            if not season_episodes:
+                logger.warning(f"No episodes found for {item.title} Season {item.season}")
+                return False
+
+            logger.info(f"Found {len(season_episodes)} episodes in {item.title} Season {item.season}")
+
+            # Delete episode files and unmonitor all episodes in the season
+            deleted_count = 0
+            for episode in season_episodes:
+                episode_file_id = episode.get('episodeFileId')
+
+                # Delete the episode file if it exists
+                if episode_file_id:
+                    delete_response = self._make_request(f'episodefile/{episode_file_id}', method='DELETE')
+                    if delete_response:
+                        deleted_count += 1
+                        logger.debug(f"Deleted file for S{episode['seasonNumber']:02d}E{episode['episodeNumber']:02d}")
+
+                # Unmonitor the episode
+                episode['monitored'] = False
+                self._make_request(f'episode/{episode["id"]}', method='PUT', data=episode)
+
+            logger.info(f"Deleted {deleted_count} episode file(s) from {item.title} Season {item.season}")
+
+            # Unmonitor the season itself
+            self._check_and_unmonitor_season_if_empty(series_id, item.season)
+
+            # NOTE: We do NOT auto-delete the series when processing season deletions
+            # Series deletion should only happen when user explicitly deletes the TV show from Jellyfin
+            # (which sends a TV_SHOW webhook) to avoid accidentally removing ongoing series
+
+            return True
+
+        except Exception as e:
+            logger.error(f"Error deleting season {item}: {e}")
+            return False

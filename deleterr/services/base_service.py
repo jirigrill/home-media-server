@@ -102,37 +102,6 @@ class ArrService(ABC):
 
         return None
 
-    def _lookup_by_name(self, lookup_endpoint: str, name: str) -> Optional[int]:
-        """
-        Lookup item by name using *arr's lookup endpoint (fallback when external IDs unavailable).
-
-        Args:
-            lookup_endpoint: The lookup endpoint ('series/lookup' or 'movie/lookup')
-            name: The item name to search for
-
-        Returns:
-            Item ID if found in library, None otherwise
-        """
-        if not name:
-            return None
-
-        try:
-            response = self._make_request(lookup_endpoint, params={'term': name})
-            if not response:
-                return None
-
-            results = response.json()
-            if not results:
-                logger.warning(f"No results found for name: '{name}'")
-                return None
-
-            # Return only items that are already in the library (have an 'id')
-            return results
-
-        except Exception as e:
-            logger.error(f"Error searching by name '{name}': {e}")
-            return None
-
     @abstractmethod
     def unmonitor_item(self, item: MediaItem) -> bool:
         """Unmonitor a media item"""

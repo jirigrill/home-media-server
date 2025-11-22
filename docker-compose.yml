@@ -212,6 +212,8 @@ services:
       - RADARR_URL=http://radarr:7878
       - SONARR_API_KEY=${SONARR_API_KEY}
       - RADARR_API_KEY=${RADARR_API_KEY}
+      - JELLYFIN_URL=http://jellyfin:8096
+      - JELLYFIN_API_KEY=${JELLYFIN_API_KEY}
       - DELETERR_PORT=${DELETERR_PORT}
       - LOG_LEVEL=INFO
     networks:

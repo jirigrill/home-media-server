@@ -22,7 +22,11 @@ class Config:
     # Radarr settings
     radarr_url: str = 'http://radarr:7878'
     radarr_api_key: Optional[str] = None
-    
+
+    # Jellyfin settings (optional - for enhanced series lookup)
+    jellyfin_url: Optional[str] = None
+    jellyfin_api_key: Optional[str] = None
+
     # Logging settings
     log_level: str = 'INFO'
     log_file: str = '/app/logs/deleterr.log'
@@ -37,10 +41,13 @@ class Config:
             
             sonarr_url=os.getenv('SONARR_URL', 'http://sonarr:8989'),
             sonarr_api_key=os.getenv('SONARR_API_KEY'),
-            
+
             radarr_url=os.getenv('RADARR_URL', 'http://radarr:7878'),
             radarr_api_key=os.getenv('RADARR_API_KEY'),
-            
+
+            jellyfin_url=os.getenv('JELLYFIN_URL', 'http://jellyfin:8096'),
+            jellyfin_api_key=os.getenv('JELLYFIN_API_KEY'),
+
             log_level=os.getenv('LOG_LEVEL', 'INFO'),
             log_file=os.getenv('LOG_FILE', '/app/logs/deleterr.log')
         )

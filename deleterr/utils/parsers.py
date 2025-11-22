@@ -21,19 +21,23 @@ class MediaParser:
         try:
             item_type = webhook_data.get('ItemType', '').lower()
             item_name = webhook_data.get('Name', '')
-            
+
             if not item_name:
                 logger.warning("No item name in webhook data")
                 return None
-            
+
             if item_type == 'episode':
                 return MediaParser._parse_episode_webhook(webhook_data)
             elif item_type == 'movie':
                 return MediaParser._parse_movie_webhook(webhook_data)
+            elif item_type == 'series':
+                return MediaParser._parse_tv_show_webhook(webhook_data)
+            elif item_type == 'season':
+                return MediaParser._parse_season_webhook(webhook_data)
             else:
                 logger.warning(f"Unsupported item type: {item_type}")
                 return None
-        
+
         except Exception as e:
             logger.error(f"Error parsing webhook data: {e}")
             return None
@@ -48,14 +52,19 @@ class MediaParser:
             episode_number = webhook_data.get('EpisodeNumber')
 
             # Extract external provider IDs (support both Jellyfin webhook format and API format)
+            # NOTE: These are episode-level IDs, not series-level IDs
             imdb_id = webhook_data.get('Provider_imdb') or webhook_data.get('ImdbId') or webhook_data.get('imdbId')
             tvdb_id = webhook_data.get('Provider_tvdb') or webhook_data.get('TvdbId') or webhook_data.get('tvdbId')
             tmdb_id = webhook_data.get('Provider_tmdb') or webhook_data.get('TmdbId') or webhook_data.get('tmdbId')
 
-            logger.debug(f"Parsing episode webhook - Series: {series_name}, Season: {season_number}, Episode: {episode_number}, TVDB: {tvdb_id}, IMDB: {imdb_id}, TMDB: {tmdb_id}")
+            # Extract Jellyfin series ID (used to query series-level external IDs)
+            series_id = webhook_data.get('SeriesId')
+
+            logger.debug(f"Parsing episode webhook - Series: {series_name}, Season: {season_number}, Episode: {episode_number}, SeriesId: {series_id}, TVDB: {tvdb_id}, IMDB: {imdb_id}, TMDB: {tmdb_id}")
 
             # If structured data is available, use it
-            if series_name and season_number is not None and episode_number is not None:
+            # Check for empty strings in addition to None
+            if series_name and season_number and episode_number:
                 # Decode HTML entities in series name
                 series_name = html.unescape(series_name)
                 return MediaItem(
@@ -65,7 +74,8 @@ class MediaParser:
                     episode=int(episode_number),
                     imdb_id=imdb_id,
                     tvdb_id=tvdb_id,
-                    tmdb_id=tmdb_id
+                    tmdb_id=tmdb_id,
+                    series_id=series_id
                 )
 
             # Fallback to parsing from item name
@@ -121,7 +131,83 @@ class MediaParser:
         except Exception as e:
             logger.error(f"Error parsing movie webhook: {e}")
             return None
-    
+
+    @staticmethod
+    def _parse_tv_show_webhook(webhook_data: dict) -> Optional[MediaItem]:
+        """Parse TV show (series) webhook data"""
+        try:
+            tv_show_title = webhook_data.get('Name', '')
+
+            # Extract external provider IDs
+            imdb_id = webhook_data.get('Provider_imdb') or webhook_data.get('ImdbId') or webhook_data.get('imdbId')
+            tvdb_id = webhook_data.get('Provider_tvdb') or webhook_data.get('TvdbId') or webhook_data.get('tvdbId')
+            tmdb_id = webhook_data.get('Provider_tmdb') or webhook_data.get('TmdbId') or webhook_data.get('tmdbId')
+
+            if not tv_show_title:
+                logger.warning("No TV show title in webhook data")
+                return None
+
+            # Decode HTML entities
+            tv_show_title = html.unescape(tv_show_title)
+
+            logger.debug(f"Parsing TV show webhook - Title: {tv_show_title}, TVDB: {tvdb_id}, IMDB: {imdb_id}, TMDB: {tmdb_id}")
+
+            return MediaItem(
+                media_type=MediaType.TV_SHOW,
+                title=tv_show_title,
+                imdb_id=imdb_id,
+                tvdb_id=tvdb_id,
+                tmdb_id=tmdb_id
+            )
+
+        except Exception as e:
+            logger.error(f"Error parsing TV show webhook: {e}")
+            return None
+
+    @staticmethod
+    def _parse_season_webhook(webhook_data: dict) -> Optional[MediaItem]:
+        """Parse season webhook data"""
+        try:
+            series_name = webhook_data.get('SeriesName', '')
+            season_number = webhook_data.get('SeasonNumber')
+
+            # Extract external provider IDs (these are season-level, not series-level)
+            imdb_id = webhook_data.get('Provider_imdb') or webhook_data.get('ImdbId') or webhook_data.get('imdbId')
+            tvdb_id = webhook_data.get('Provider_tvdb') or webhook_data.get('TvdbId') or webhook_data.get('tvdbId')
+            tmdb_id = webhook_data.get('Provider_tmdb') or webhook_data.get('TmdbId') or webhook_data.get('tmdbId')
+
+            # Extract Jellyfin series ID (used to query series-level external IDs)
+            series_id = webhook_data.get('SeriesId')
+
+            # If SeriesName is empty, try to infer from Name field
+            if not series_name:
+                name_field = webhook_data.get('Name', '')
+                # Remove "Season X" pattern to try to extract series name
+                series_name = re.sub(r'\s*Season\s+\d+\s*', '', name_field, flags=re.IGNORECASE).strip()
+
+            if not series_name or not season_number:
+                logger.warning(f"Missing series name or season number in season webhook")
+                return None
+
+            # Decode HTML entities
+            series_name = html.unescape(series_name)
+
+            logger.debug(f"Parsing season webhook - Series: {series_name}, Season: {season_number}, SeriesId: {series_id}, TVDB: {tvdb_id}, IMDB: {imdb_id}, TMDB: {tmdb_id}")
+
+            return MediaItem(
+                media_type=MediaType.SEASON,
+                title=series_name,
+                season=int(season_number),
+                imdb_id=imdb_id,
+                tvdb_id=tvdb_id,
+                tmdb_id=tmdb_id,
+                series_id=series_id
+            )
+
+        except Exception as e:
+            logger.error(f"Error parsing season webhook: {e}")
+            return None
+
     @staticmethod
     def _parse_episode_from_name(item_name: str) -> Optional[MediaItem]:
         """Parse episode information from item name using regex patterns"""
