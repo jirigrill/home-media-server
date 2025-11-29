@@ -61,6 +61,77 @@ class JellyfinService:
             logger.error(f"Error processing Jellyfin response for series {series_id}: {e}")
             return None
 
+    def item_exists_in_library(self, item_name: str, tvdb_id: Optional[str] = None,
+                               imdb_id: Optional[str] = None, tmdb_id: Optional[str] = None,
+                               item_type: Optional[str] = None) -> bool:
+        """
+        Check if an item still exists in Jellyfin's library.
+        This is used to distinguish between quality upgrades (item still exists with new file)
+        and actual deletions (item completely removed from library).
+
+        Args:
+            item_name: Name of the movie/show to search for
+            tvdb_id: TVDB ID for TV shows
+            imdb_id: IMDB ID
+            tmdb_id: TMDB ID
+            item_type: Optional item type filter ('Movie', 'Series', 'Episode')
+
+        Returns:
+            True if the item exists in the library, False otherwise
+        """
+        try:
+            # Try each external ID using Jellyfin's AnyProviderIdEquals parameter
+            for provider_id, provider_name in [(tvdb_id, 'Tvdb'), (imdb_id, 'Imdb'), (tmdb_id, 'Tmdb')]:
+                if not provider_id:
+                    continue
+
+                params = {
+                    'Recursive': 'true',
+                    'AnyProviderIdEquals': provider_id,
+                    'Limit': 1,
+                    'Fields': 'ProviderIds',
+                }
+
+                # Set item type filter
+                if item_type:
+                    if item_type.lower() in ['episode', 'season', 'series', 'tv_show', 'tvshow']:
+                        params['IncludeItemTypes'] = 'Series'
+                    elif item_type.lower() == 'movie':
+                        params['IncludeItemTypes'] = 'Movie'
+
+                response = self.session.get(
+                    f"{self.url}/Items",
+                    params=params,
+                    timeout=10
+                )
+                response.raise_for_status()
+                result = response.json()
+                items = result.get('Items', [])
+
+                # Verify the returned item actually has the provider ID we searched for
+                if items:
+                    item = items[0]
+                    provider_ids = item.get('ProviderIds', {})
+
+                    # Check if the provider ID matches (case-insensitive)
+                    if provider_ids.get(provider_name) == provider_id or provider_ids.get(provider_name.lower()) == provider_id:
+                        logger.info(f"Found item '{item.get('Name')}' in Jellyfin by {provider_name} ID: {provider_id}")
+                        return True
+                    else:
+                        logger.debug(f"Item returned but provider ID doesn't match (expected {provider_name}={provider_id}, got {provider_ids})")
+
+            logger.info(f"Item '{item_name}' not found in Jellyfin library (IDs: TVDB={tvdb_id}, IMDB={imdb_id}, TMDB={tmdb_id})")
+            return False
+
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to search Jellyfin library: {e}")
+            # Fail-safe: assume item exists on error to avoid accidental unmonitoring
+            return True
+        except Exception as e:
+            logger.error(f"Error checking if item exists in Jellyfin: {e}")
+            # Fail-safe: assume item exists on error to avoid accidental unmonitoring
+            return True
+
     def test_connection(self) -> bool:
         """Test Jellyfin API connection"""
         try:

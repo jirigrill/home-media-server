@@ -48,6 +48,23 @@ class WebhookProcessor:
                 else:
                     logger.warning(f"Could not retrieve series external IDs from Jellyfin for SeriesId: {item.series_id}")
 
+            # IMPORTANT: Check if item still exists in Jellyfin library before unmonitoring
+            # This prevents unmonitoring content during quality upgrades (old file deleted, new file added)
+            if self.jellyfin:
+                item_exists = self.jellyfin.item_exists_in_library(
+                    item_name=item.name,
+                    tvdb_id=item.tvdb_id,
+                    imdb_id=item.imdb_id,
+                    tmdb_id=item.tmdb_id,
+                    item_type=item.media_type.value
+                )
+
+                if item_exists:
+                    logger.info(f"⏩ Skipping unmonitor - item still exists in Jellyfin (likely a quality upgrade): {item.name}")
+                    return True  # Return success since no error occurred
+            else:
+                logger.warning("Jellyfin service not configured - cannot verify if item truly deleted. Proceeding with unmonitor.")
+
             # Route to appropriate service based on media type
             if item.media_type == MediaType.EPISODE:
                 logger.debug(f"Routing to Sonarr for episode: {item}")
@@ -64,7 +81,7 @@ class WebhookProcessor:
             else:
                 logger.warning(f"Unsupported media type: {item.media_type}")
                 return False
-        
+
         except Exception as e:
             logger.error(f"Error processing removal webhook: {e}")
             return False
