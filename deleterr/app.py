@@ -17,16 +17,38 @@ from utils.parsers import MediaParser
 # Initialize configuration
 config = Config.from_env()
 
-# Setup logging
+# Setup logging with custom formatter
 os.makedirs(os.path.dirname(config.log_file), exist_ok=True)
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler(config.log_file),
-        logging.StreamHandler()
-    ]
+
+class ShortNameFormatter(logging.Formatter):
+    """Custom formatter that shortens module names for cleaner logs"""
+    def format(self, record):
+        # Shorten "deleterr.services.webhook_processor" -> "webhook"
+        record.name = record.name.split('.')[-1][:12]
+        return super().format(record)
+
+# Configure log level from environment variable
+log_level = getattr(logging, config.log_level.upper(), logging.INFO)
+
+# Create formatter with shorter timestamps and cleaner format
+formatter = ShortNameFormatter(
+    fmt='%(asctime)s %(name)-12s %(levelname)-5s %(message)s',
+    datefmt='%H:%M:%S'
 )
+
+# Setup handlers
+file_handler = logging.FileHandler(config.log_file)
+file_handler.setFormatter(formatter)
+
+stream_handler = logging.StreamHandler()
+stream_handler.setFormatter(formatter)
+
+# Configure root logger
+logging.basicConfig(
+    level=log_level,
+    handlers=[file_handler, stream_handler]
+)
+
 logger = logging.getLogger(__name__)
 
 # Initialize Flask app
@@ -135,13 +157,13 @@ def handle_deletion():
         success = webhook_processor.process_removal(data)
 
         if success:
-            logger.info(f"✓ Successfully processed removal for: {detail}")
+            logger.info(f"[OK] Successfully processed removal for: {detail}")
             return jsonify({
                 'status': 'success',
                 'message': f'Successfully unmonitored: {item_name}'
             })
         else:
-            logger.error(f"✗ Failed to process removal for: {detail}")
+            logger.error(f"[FAIL] Failed to process removal for: {detail}")
             return jsonify({
                 'status': 'error',
                 'message': f'Failed to unmonitor: {item_name}'

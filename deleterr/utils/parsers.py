@@ -57,10 +57,11 @@ class MediaParser:
             tvdb_id = webhook_data.get('Provider_tvdb') or webhook_data.get('TvdbId') or webhook_data.get('tvdbId')
             tmdb_id = webhook_data.get('Provider_tmdb') or webhook_data.get('TmdbId') or webhook_data.get('tmdbId')
 
-            # Extract Jellyfin series ID (used to query series-level external IDs)
+            # Extract Jellyfin IDs
+            item_id = webhook_data.get('ItemId')
             series_id = webhook_data.get('SeriesId')
 
-            logger.debug(f"Parsing episode webhook - Series: {series_name}, Season: {season_number}, Episode: {episode_number}, SeriesId: {series_id}, TVDB: {tvdb_id}, IMDB: {imdb_id}, TMDB: {tmdb_id}")
+            logger.debug(f"Parsing episode webhook - Series: {series_name}, Season: {season_number}, Episode: {episode_number}, ItemId: {item_id}, SeriesId: {series_id}, TVDB: {tvdb_id}, IMDB: {imdb_id}, TMDB: {tmdb_id}")
 
             # If structured data is available, use it
             # Check for empty strings in addition to None
@@ -75,6 +76,7 @@ class MediaParser:
                     imdb_id=imdb_id,
                     tvdb_id=tvdb_id,
                     tmdb_id=tmdb_id,
+                    item_id=item_id,
                     series_id=series_id
                 )
 
@@ -102,6 +104,9 @@ class MediaParser:
             tvdb_id = webhook_data.get('Provider_tvdb') or webhook_data.get('TvdbId') or webhook_data.get('tvdbId')
             tmdb_id = webhook_data.get('Provider_tmdb') or webhook_data.get('TmdbId') or webhook_data.get('tmdbId')
 
+            # Extract Jellyfin item ID
+            item_id = webhook_data.get('ItemId')
+
             if not movie_title:
                 logger.warning("No movie title in webhook data")
                 return None
@@ -117,7 +122,7 @@ class MediaParser:
                 except (ValueError, TypeError):
                     logger.warning(f"Invalid year format: {year}")
 
-            logger.debug(f"Parsing movie webhook - Title: {movie_title}, Year: {parsed_year}, IMDB: {imdb_id}, TMDB: {tmdb_id}")
+            logger.debug(f"Parsing movie webhook - Title: {movie_title}, Year: {parsed_year}, ItemId: {item_id}, IMDB: {imdb_id}, TMDB: {tmdb_id}")
 
             return MediaItem(
                 media_type=MediaType.MOVIE,
@@ -125,7 +130,8 @@ class MediaParser:
                 year=parsed_year,
                 imdb_id=imdb_id,
                 tvdb_id=tvdb_id,
-                tmdb_id=tmdb_id
+                tmdb_id=tmdb_id,
+                item_id=item_id
             )
 
         except Exception as e:
@@ -143,6 +149,9 @@ class MediaParser:
             tvdb_id = webhook_data.get('Provider_tvdb') or webhook_data.get('TvdbId') or webhook_data.get('tvdbId')
             tmdb_id = webhook_data.get('Provider_tmdb') or webhook_data.get('TmdbId') or webhook_data.get('tmdbId')
 
+            # Extract Jellyfin item ID
+            item_id = webhook_data.get('ItemId')
+
             if not tv_show_title:
                 logger.warning("No TV show title in webhook data")
                 return None
@@ -150,14 +159,15 @@ class MediaParser:
             # Decode HTML entities
             tv_show_title = html.unescape(tv_show_title)
 
-            logger.debug(f"Parsing TV show webhook - Title: {tv_show_title}, TVDB: {tvdb_id}, IMDB: {imdb_id}, TMDB: {tmdb_id}")
+            logger.debug(f"Parsing TV show webhook - Title: {tv_show_title}, ItemId: {item_id}, TVDB: {tvdb_id}, IMDB: {imdb_id}, TMDB: {tmdb_id}")
 
             return MediaItem(
                 media_type=MediaType.TV_SHOW,
                 title=tv_show_title,
                 imdb_id=imdb_id,
                 tvdb_id=tvdb_id,
-                tmdb_id=tmdb_id
+                tmdb_id=tmdb_id,
+                item_id=item_id
             )
 
         except Exception as e:
@@ -176,7 +186,8 @@ class MediaParser:
             tvdb_id = webhook_data.get('Provider_tvdb') or webhook_data.get('TvdbId') or webhook_data.get('tvdbId')
             tmdb_id = webhook_data.get('Provider_tmdb') or webhook_data.get('TmdbId') or webhook_data.get('tmdbId')
 
-            # Extract Jellyfin series ID (used to query series-level external IDs)
+            # Extract Jellyfin IDs
+            item_id = webhook_data.get('ItemId')
             series_id = webhook_data.get('SeriesId')
 
             # If SeriesName is empty, try to infer from Name field
@@ -192,7 +203,7 @@ class MediaParser:
             # Decode HTML entities
             series_name = html.unescape(series_name)
 
-            logger.debug(f"Parsing season webhook - Series: {series_name}, Season: {season_number}, SeriesId: {series_id}, TVDB: {tvdb_id}, IMDB: {imdb_id}, TMDB: {tmdb_id}")
+            logger.debug(f"Parsing season webhook - Series: {series_name}, Season: {season_number}, ItemId: {item_id}, SeriesId: {series_id}, TVDB: {tvdb_id}, IMDB: {imdb_id}, TMDB: {tmdb_id}")
 
             return MediaItem(
                 media_type=MediaType.SEASON,
@@ -201,6 +212,7 @@ class MediaParser:
                 imdb_id=imdb_id,
                 tvdb_id=tvdb_id,
                 tmdb_id=tmdb_id,
+                item_id=item_id,
                 series_id=series_id
             )
 

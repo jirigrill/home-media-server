@@ -13,11 +13,32 @@ logger = logging.getLogger(__name__)
 
 class RadarrService(ArrService):
     """Radarr API service for managing movies"""
-    
+
+    # Delete parameters for movie removal
+    DELETE_PARAMS = {
+        'deleteFiles': 'true',
+        'addImportExclusion': 'false'
+    }
+
     def test_connection(self) -> bool:
         """Test Radarr API connection"""
         response = self._make_request('system/status')
         return response is not None
+
+    def _find_movie_by_external_ids(self, item: MediaItem) -> Optional[int]:
+        """Find movie ID using external IDs with standardized error handling"""
+        external_ids = [
+            ('tmdb', item.tmdb_id),  # Primary for movies
+            ('imdb', item.imdb_id),  # Fallback
+        ]
+        movie_id = self._try_external_id_lookups('movie/lookup', external_ids)
+
+        if not movie_id:
+            logger.error(
+                f"Could not find movie '{item.title}' in Radarr "
+                f"(TMDB: {item.tmdb_id}, IMDB: {item.imdb_id})"
+            )
+        return movie_id
 
     def unmonitor_item(self, item: MediaItem) -> bool:
         """Delete a movie completely from Radarr"""
@@ -27,25 +48,12 @@ class RadarrService(ArrService):
 
         try:
             # Find movie using external IDs (TMDB, IMDB)
-            external_ids = [
-                ('tmdb', item.tmdb_id),  # Primary for movies
-                ('imdb', item.imdb_id),  # Fallback
-            ]
-
-            movie_id = self._try_external_id_lookups('movie/lookup', external_ids)
-
+            movie_id = self._find_movie_by_external_ids(item)
             if not movie_id:
-                logger.error(f"Could not find movie for {item} in Radarr using external IDs (TMDB: {item.tmdb_id}, IMDB: {item.imdb_id})")
                 return False
 
-            # Delete the movie with deleteFiles=true to remove all metadata and folder
-            # addImportExclusion=false allows the movie to be re-added later if needed
-            params = {
-                'deleteFiles': 'true',
-                'addImportExclusion': 'false'
-            }
-
-            response = self._make_request(f'movie/{movie_id}', method='DELETE', params=params)
+            # Delete the movie using class constant
+            response = self._make_request(f'movie/{movie_id}', method='DELETE', params=self.DELETE_PARAMS)
             if response:
                 logger.info(f"Successfully deleted movie from Radarr: {item}")
                 return True

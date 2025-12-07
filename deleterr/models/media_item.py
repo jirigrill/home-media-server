@@ -27,8 +27,9 @@ class MediaItem:
     imdb_id: Optional[str] = None
     tvdb_id: Optional[str] = None
     tmdb_id: Optional[str] = None
-    # Jellyfin series ID (for episodes/seasons - used to query series-level external IDs)
-    series_id: Optional[str] = None
+    # Jellyfin IDs
+    item_id: Optional[str] = None  # Jellyfin item ID (for existence check)
+    series_id: Optional[str] = None  # Jellyfin series ID (for episodes/seasons - used to query series-level external IDs)
     
     def __post_init__(self):
         """Validate media item after initialization"""

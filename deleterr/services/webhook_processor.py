@@ -35,24 +35,15 @@ class WebhookProcessor:
 
             logger.info(f"Processing removal for: {item}")
 
-            # For episodes/seasons with SeriesId, enrich with series-level external IDs from Jellyfin
-            if item.media_type in (MediaType.EPISODE, MediaType.SEASON) and item.series_id and self.jellyfin:
-                logger.debug(f"Enriching item with series-level external IDs from Jellyfin (SeriesId: {item.series_id})")
-                series_ids = self.jellyfin.get_series_external_ids(item.series_id)
-                if series_ids:
-                    # Replace episode/season-level IDs with series-level IDs for better matching
-                    item.tvdb_id = series_ids.get('tvdb') or item.tvdb_id
-                    item.imdb_id = series_ids.get('imdb') or item.imdb_id
-                    item.tmdb_id = series_ids.get('tmdb') or item.tmdb_id
-                    logger.debug(f"Updated external IDs - TVDB: {item.tvdb_id}, IMDB: {item.imdb_id}, TMDB: {item.tmdb_id}")
-                else:
-                    logger.warning(f"Could not retrieve series external IDs from Jellyfin for SeriesId: {item.series_id}")
-
-            # IMPORTANT: Check if item still exists in Jellyfin library before unmonitoring
-            # This prevents unmonitoring content during quality upgrades (old file deleted, new file added)
-            if self.jellyfin:
+            # IMPORTANT: Check if movie still exists in Jellyfin library before unmonitoring
+            # This prevents unmonitoring movies during quality upgrades (old file deleted, new file added)
+            # Episodes are not checked because:
+            # 1. Jellyfin doesn't index episode-level external IDs (only series-level)
+            # 2. User doesn't upgrade episodes (quality upgrades only happen for movies)
+            if self.jellyfin and item.media_type == MediaType.MOVIE:
+                logger.debug(f"Checking if movie '{item.title}' still exists in Jellyfin library")
                 item_exists = self.jellyfin.item_exists_in_library(
-                    item_name=item.name,
+                    item_name=item.title,
                     tvdb_id=item.tvdb_id,
                     imdb_id=item.imdb_id,
                     tmdb_id=item.tmdb_id,
@@ -60,10 +51,28 @@ class WebhookProcessor:
                 )
 
                 if item_exists:
-                    logger.info(f"⏩ Skipping unmonitor - item still exists in Jellyfin (likely a quality upgrade): {item.name}")
+                    logger.info(f"[SKIP] Skipping unmonitor - movie still exists in Jellyfin (likely a quality upgrade): {item.title}")
                     return True  # Return success since no error occurred
+                else:
+                    logger.info(f"[OK] Movie confirmed deleted from Jellyfin - proceeding with unmonitor")
+            elif self.jellyfin and item.media_type in (MediaType.EPISODE, MediaType.SEASON, MediaType.TV_SHOW):
+                logger.debug(f"Skipping existence check for {item.media_type.value} - proceeding directly to unmonitor")
             else:
                 logger.warning("Jellyfin service not configured - cannot verify if item truly deleted. Proceeding with unmonitor.")
+
+            # For episodes/seasons with SeriesId, enrich with series-level external IDs from Jellyfin
+            # This ensures we have series IDs for proper Sonarr matching
+            if item.media_type in (MediaType.EPISODE, MediaType.SEASON) and item.series_id and self.jellyfin:
+                logger.debug(f"Enriching item with series-level external IDs from Jellyfin (SeriesId: {item.series_id})")
+                series_ids = self.jellyfin.get_series_external_ids(item.series_id)
+                if series_ids:
+                    # Replace episode/season-level IDs with series-level IDs for better matching in Sonarr
+                    item.tvdb_id = series_ids.get('tvdb') or item.tvdb_id
+                    item.imdb_id = series_ids.get('imdb') or item.imdb_id
+                    item.tmdb_id = series_ids.get('tmdb') or item.tmdb_id
+                    logger.debug(f"Updated external IDs - TVDB: {item.tvdb_id}, IMDB: {item.imdb_id}, TMDB: {item.tmdb_id}")
+                else:
+                    logger.warning(f"Could not retrieve series external IDs from Jellyfin for SeriesId: {item.series_id}")
 
             # Route to appropriate service based on media type
             if item.media_type == MediaType.EPISODE:
