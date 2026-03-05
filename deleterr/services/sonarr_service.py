@@ -271,7 +271,7 @@ class SonarrService(ArrService):
             return False
 
     def _delete_tv_show(self, item: MediaItem) -> bool:
-        """Delete entire TV show from Sonarr"""
+        """Delete entire TV show from Sonarr (only if ended, preserve continuing shows)"""
         try:
             # Find series using external IDs (TVDB, IMDB, TMDB)
             # Don't log error if not found - handle it gracefully below
@@ -282,7 +282,24 @@ class SonarrService(ArrService):
                 logger.info(f"Series '{item.title}' not found in Sonarr - already deleted or never added")
                 return True  # Return success since the goal (series removed) is achieved
 
-            # Reuse helper method for actual deletion
+            # Fetch series details to check status
+            series_response = self._make_request(f'series/{series_id}')
+            if not series_response:
+                logger.error(f"Failed to fetch series data for '{item.title}' (ID: {series_id})")
+                return False
+
+            series_data = series_response.json()
+            status = series_data.get('status', '').lower()
+
+            # IMPORTANT: Only delete series if it's ended
+            # Continuing shows should be kept in Sonarr even if seasons are deleted from Jellyfin
+            # This prevents removing ongoing shows when user deletes old seasons to save space
+            if status == 'continuing':
+                logger.info(f"[SKIP] Series '{item.title}' has status 'continuing' - keeping in Sonarr (user likely deleted old seasons)")
+                return True  # Return success since we're preserving the series intentionally
+
+            # Series is ended, safe to delete
+            logger.info(f"Series '{item.title}' has status '{status}' - proceeding with deletion")
             return self._delete_tv_show_by_id(series_id, item.title)
 
         except Exception as e:
