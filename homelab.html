@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Homelab · Jellyfin Server</title>
+<style>
+  :root {
+    --bg: #0e1013;
+    --bg-soft: #15181d;
+    --card: #171b21;
+    --card-border: #232932;
+    --text: #e8ebf0;
+    --muted: #8b95a3;
+    --hover: #1f2530;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background:
+      radial-gradient(900px 500px at 15% -10%, rgba(60, 105, 255, 0.12), transparent 60%),
+      radial-gradient(800px 500px at 90% -10%, rgba(34, 197, 94, 0.10), transparent 60%),
+      var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    min-height: 100vh;
+    padding: 40px 28px;
+  }
+
+  header { max-width: 1200px; margin: 0 auto 36px; }
+  header h1 { font-size: 30px; font-weight: 700; letter-spacing: -0.02em; }
+  header p  { color: var(--muted); margin-top: 6px; font-size: 15px; }
+
+  main  { max-width: 1200px; margin: 0 auto; }
+  .section { margin-bottom: 34px; }
+  .section h2 {
+    font-size: 14px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--muted);
+    margin-bottom: 14px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .section h2 .count {
+    background: var(--bg-soft); border: 1px solid var(--card-border);
+    color: var(--muted); font-size: 11px; border-radius: 20px; padding: 2px 8px;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+  }
+
+  a.tile {
+    display: block;
+    text-decoration: none;
+    color: inherit;
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: 16px;
+    padding: 20px;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+  }
+  a.tile:hover {
+    transform: translateY(-3px);
+    background: var(--hover);
+    border-color: var(--accent, #3b82f6);
+    box-shadow: 0 10px 28px -10px rgba(0, 0, 0, 0.55), 0 0 0 1px var(--accent, #3b82f6) inset;
+  }
+
+  .tile .row { display: flex; align-items: flex-start; gap: 14px; }
+  .icon {
+    flex: 0 0 auto;
+    width: 56px; height: 56px;
+    border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 28px;
+    background: color-mix(in srgb, var(--accent, #3b82f6) 16%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent, #3b82f6) 30%, transparent);
+  }
+  .tile h3 { font-size: 17px; font-weight: 600; margin-top: 3px; }
+  .tile p  { color: var(--muted); font-size: 13.5px; line-height: 1.45; margin-top: 5px; }
+
+  .foot {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-top: 16px; padding-top: 12px;
+    border-top: 1px solid var(--card-border);
+  }
+  .tag {
+    font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase;
+    color: var(--muted);
+  }
+  .arrow {
+    color: var(--accent, #3b82f6);
+    font-size: 16px;
+    transition: transform 0.15s ease;
+  }
+  a.tile:hover .arrow { transform: translateX(3px); }
+
+  footer {
+    max-width: 1200px; margin: 44px auto 0; padding-top: 20px;
+    border-top: 1px solid var(--card-border);
+    color: var(--muted); font-size: 12.5px;
+    display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  }
+  footer code { background: var(--bg-soft); border: 1px solid var(--card-border); border-radius: 6px; padding: 1px 6px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Homelab</h1>
+  <p>Jellyfin server · pick an app to jump straight to it</p>
+</header>
+
+<main id="app"></main>
+
+<footer>
+  <span>Served from <code>192.168.0.60</code> · each tile opens its service in a new tab</span>
+  <span>Generated from a small config below — add, remove or re-order apps there.</span>
+</footer>
+
+<script>
+  const BASE = "http://192.168.0.60";
+
+  const SECTIONS = [
+    {
+      name: "Watch & Listen",
+      apps: [
+        { name: "Jellyfin",       desc: "Movies, shows, music — your media server",  port: 8096,  icon: "\u{1F3AC}", accent: "#00a4dc" },
+        { name: "Audiobookshelf", desc: "Audiobooks, e-books & podcasts",           port: 13378, icon: "\u{1F3A7}", accent: "#cb9e57" },
+      ]
+    },
+    {
+      name: "Downloads & Automation",
+      apps: [
+        { name: "qBittorrent", desc: "Torrent downloads & seeding",   port: 8080, icon: "\u{1F9F2}", accent: "#22c55e" },
+        { name: "Sonarr",      desc: "TV series automation",          port: 8989, icon: "\u{1F4FA}", accent: "#60a5fa" },
+        { name: "Radarr",      desc: "Movie automation & upgrades",   port: 7878, icon: "\u{1F3A5}", accent: "#f59e0b" },
+        { name: "Prowlarr",    desc: "Indexers & search management",  port: 9696, icon: "\u{1F419}", accent: "#fb923c" },
+        { name: "Bazarr",      desc: "Subtitle downloads & sync",     port: 6767, icon: "\u{1F4AC}", accent: "#a3a3a3" },
+        { name: "ReadMeABook",    desc: "Audiobook library manager",                port: 3030,  icon: "\u{1F4DA}", accent: "#8b5cf6" },
+      ]
+    },
+    {
+      name: "Maintenance",
+      apps: [
+        { name: "Cleanuparr", desc: "Duplicate & leftover cleanup",         port: 11011, icon: "\u{1F9F9}", accent: "#4ade80" },
+        { name: "Deleterr",   desc: "Deletes from Sonarr/Radarr when removed in Jellyfin", port: 5000, icon: "\u{1F5D1}\uFE0F", accent: "#f87171" },
+      ]
+    },
+    {
+      name: "Monitoring & Tools",
+      apps: [
+        { name: "Gatus",       desc: "Service health & uptime dashboard", port: 1234, icon: "\u{1FA7A}", accent: "#2dd4bf" },
+        { name: "Grafana",     desc: "Metrics dashboards",               port: 3000, icon: "\u{1F4CA}", accent: "#fb923c" },
+        { name: "FlareSolverr", desc: "Cloudflare-bypass proxy",         port: 8191, icon: "\u{1F329}\uFE0F", accent: "#facc15" },
+      ]
+    },
+    {
+      name: "Others",
+      apps: [
+        { name: "Ninder",         desc: "Movie-night picker for your library",      port: 3002,  icon: "\u{1F37F}", accent: "#f43f5e" },
+        { name: "Obsidian Sync", desc: "Vault live-sync database (CouchDB)", port: 5984,  icon: "\u{1F4C1}", accent: "#7c3aed" },
+      ]
+    }
+  ];
+
+  const root = document.getElementById("app");
+
+  for (const section of SECTIONS) {
+    const sec = document.createElement("section");
+    sec.className = "section";
+
+    const h = document.createElement("h2");
+    h.textContent = section.name;
+    const count = document.createElement("span");
+    count.className = "count";
+    count.textContent = section.apps.length;
+    h.appendChild(count);
+
+    const grid = document.createElement("div");
+    grid.className = "grid";
+
+    for (const app of section.apps) {
+      const a = document.createElement("a");
+      a.className = "tile";
+      a.href = `${BASE}:${app.port}/`;
+      a.target = "_blank";
+      a.rel = "noopener";
+      a.title = `${BASE}:${app.port}`;
+      a.style.setProperty("--accent", app.accent);
+
+      a.innerHTML = `
+        <div class="row">
+          <div class="icon">${app.icon}</div>
+          <div>
+            <h3>${app.name}</h3>
+            <p>${app.desc}</p>
+          </div>
+        </div>
+        <div class="foot">
+          <span class="tag">:${app.port}</span>
+          <span class="arrow">\u2192</span>
+        </div>`;
+
+      grid.appendChild(a);
+    }
+
+    sec.appendChild(h);
+    sec.appendChild(grid);
+    root.appendChild(sec);
+  }
+</script>
+</body>
+</html>
