@@ -250,26 +250,6 @@ services:
       - sonarr
       - radarr
 
-  huntarr:
-    image: huntarr/plexguide:12.0.3
-    container_name: huntarr
-    hostname: huntarr
-    restart: unless-stopped
-    mem_limit: ${HUNTARR_MEM_LIMIT}
-    environment:
-      - PUID=${PUID}
-      - PGID=${PGID}
-      - TZ=${TZ}
-    networks:
-      - media_server
-    ports:
-      - ${HUNTARR_PORT}:9700
-    volumes:
-      - huntarr_data:/config
-    depends_on:
-      - sonarr
-      - radarr
-
 volumes:
   qbittorrent_data:
   jellyfin_data:
@@ -280,7 +260,6 @@ volumes:
   bazarr_data:
   cleanuparr_data:
   deleterr_data:
-  huntarr_data:
   audiobookshelf_config:
   audiobookshelf_metadata:
 
