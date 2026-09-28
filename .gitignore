@@ -59,3 +59,9 @@ bazarr/config/*
 
 # qbittorrent config (all runtime configs)
 qbittorrent/config/
+
+# readmeabook runtime data (config, cache, postgres, redis)
+readmeabook/
+
+# make backup output (multi-GB tarballs, keep out of the repo)
+backups/

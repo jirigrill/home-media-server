@@ -25,7 +25,6 @@ A comprehensive media server setup using Docker Compose, featuring Jellyfin as t
   - **QueueCleaner**: Removes stalled/failed downloads from Sonarr/Radarr queue
   - **DownloadCleaner**: Manages orphaned torrents in qBittorrent
 - **Deleterr**: Custom webhook service that automatically deletes content from Sonarr/Radarr when removed from Jellyfin
-- **Watchtower**: Automatic container updater that keeps all services up-to-date with the latest releases
 
 ## Prerequisites
 
@@ -181,17 +180,18 @@ Deleterr automatically manages content removal when you delete items from Jellyf
 
 **Webhook Configuration**: Point Jellyfin's ItemRemoved webhook to `http://deleterr:5000/delete`
 
-### Watchtower - Automatic Updates
+### Updating Services
 
-Watchtower keeps your media server up-to-date automatically:
+Updates are applied manually with `make update`, which pulls the latest images and
+recreates the containers. Watchtower was removed because it was crash-looping
+against the host's Docker API (client 1.25 vs. minimum 1.40) and had silently
+stopped applying updates.
 
-- Runs daily at 4 AM (configurable via `WATCHTOWER_SCHEDULE` in `.env`)
-- Checks Docker Hub for new image versions
-- Automatically updates and restarts containers when new versions are available
-- Removes old Docker images after successful updates
-- Can be triggered manually with `make update-now`
-
-All services are configured with Watchtower labels for automatic updates.
+```bash
+make update          # pull all images + recreate containers
+make pull            # pull images only
+docker system prune  # remove old images afterwards
+```
 
 ## Resource Management
 
@@ -209,15 +209,11 @@ Important data to backup:
 
 ### Updates
 
-**Automatic Updates** (via Watchtower):
-- Updates run automatically daily at 4 AM
-- Configure schedule in `.env` with `WATCHTOWER_SCHEDULE`
-- Force immediate update check: `make update-now`
-
-**Manual Updates**:
+Updates are manual:
 ```bash
-docker-compose pull
-docker-compose up -d
+make update
+# or
+docker compose pull && docker compose up -d
 # Or use the Makefile
 make update
 ```

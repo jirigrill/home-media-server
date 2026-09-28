@@ -1,7 +1,7 @@
 # Home Media Server Makefile
 # Provides convenient commands for managing the Docker Compose stack
 
-.PHONY: help up down restart logs status pull build clean network backup restore dev test lint format
+.PHONY: help up down restart logs status pull build clean network backup restore dev test lint format update
 
 # Default target
 help: ## Show this help message
@@ -50,7 +50,7 @@ status: ## Show status of all services
 # Updates and Maintenance
 pull: ## Pull latest Docker images
 	@echo "Pulling latest images..."
-	docker-compose pull
+	docker-compose pull --ignore-pull-failures
 
 build: ## Build custom services (deleterr)
 	@echo "Building custom services..."
@@ -59,10 +59,6 @@ build: ## Build custom services (deleterr)
 update: pull ## Update all services (pull + restart)
 	@echo "Updating and restarting services..."
 	docker-compose up -d
-
-update-now: ## Force Watchtower to check for updates immediately
-	@echo "Triggering Watchtower update check..."
-	docker exec watchtower /watchtower --run-once
 
 # Development
 dev: ## Start stack in development mode with build
@@ -132,6 +128,8 @@ backup: ## Backup configuration data
 		-v home-media-server_huntarr_data:/data/huntarr \
 		-v home-media-server_cleanuparr_data:/data/cleanuparr \
 		-v home-media-server_deleterr_data:/data/deleterr \
+		-v home-media-server_audiobookshelf_config:/data/abs_config \
+		-v home-media-server_audiobookshelf_metadata:/data/abs_metadata \
 		-v $$(pwd)/backups:/backup \
 		alpine:latest \
 		tar czf /backup/media_server_backup_$$timestamp.tar.gz -C /data .
@@ -161,6 +159,8 @@ restore-backup: ## Restore from specific backup file (use BACKUP=filename)
 			-v home-media-server_huntarr_data:/data/huntarr \
 			-v home-media-server_cleanuparr_data:/data/cleanuparr \
 			-v home-media-server_deleterr_data:/data/deleterr \
+		-v home-media-server_audiobookshelf_config:/data/abs_config \
+		-v home-media-server_audiobookshelf_metadata:/data/abs_metadata \
 			-v $$(pwd)/backups:/backup \
 			alpine:latest \
 			tar xzf /backup/$(BACKUP) -C /data; \
@@ -172,7 +172,7 @@ restore-backup: ## Restore from specific backup file (use BACKUP=filename)
 health: ## Check health of all services
 	@echo "Service Health Check:"
 	@echo "==================="
-	@services="jellyfin qbittorrent flaresolverr prowlarr sonarr radarr bazarr huntarr cleanuparr deleterr watchtower"; \
+	@services="jellyfin qbittorrent flaresolverr prowlarr sonarr radarr bazarr huntarr cleanuparr deleterr audiobookshelf readmeabook"; \
 	for service in $$services; do \
 		echo -n "$$service: "; \
 		if docker-compose ps $$service | grep -q "Up"; then \
