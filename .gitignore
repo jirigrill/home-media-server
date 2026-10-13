@@ -65,3 +65,5 @@ readmeabook/
 
 # make backup output (multi-GB tarballs, keep out of the repo)
 backups/
+# seerr runtime data (config, db)
+seerr/

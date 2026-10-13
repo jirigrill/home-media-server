@@ -284,7 +284,7 @@ services:
     ports:
       - ${SEERR_PORT}:5055
     volumes:
-      - seerr_data:/app/config
+      - ./seerr/config:/app/config
     depends_on:
       - sonarr
       - radarr
@@ -301,7 +301,6 @@ volumes:
   cleanuparr_data:
   deleterr_data:
   houndarr_data:
-  seerr_data:
   audiobookshelf_config:
   audiobookshelf_metadata:
 
