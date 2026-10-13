@@ -270,6 +270,26 @@ services:
       - sonarr
       - radarr
 
+  seerr:
+    image: seerr/seerr:latest
+    container_name: seerr
+    hostname: seerr
+    restart: unless-stopped
+    mem_limit: ${SEERR_MEM_LIMIT}
+    environment:
+      - LOG_LEVEL=info
+      - TZ=${TZ}
+    networks:
+      - media_server
+    ports:
+      - ${SEERR_PORT}:5055
+    volumes:
+      - seerr_data:/app/config
+    depends_on:
+      - sonarr
+      - radarr
+      - jellyfin
+
 volumes:
   qbittorrent_data:
   jellyfin_data:
@@ -281,6 +301,7 @@ volumes:
   cleanuparr_data:
   deleterr_data:
   houndarr_data:
+  seerr_data:
   audiobookshelf_config:
   audiobookshelf_metadata:
 
