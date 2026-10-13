@@ -16,7 +16,23 @@ class JellyfinService:
         self.url = url.rstrip('/')
         self.api_key = api_key
         self.session = requests.Session()
-        self.session.headers.update({'X-MediaBrowser-Token': api_key})
+        self.session.headers.update({'Authorization': 'MediaBrowser Token="' + api_key + '"'})
+        self.user_id = self._detect_user_id()
+
+    def _detect_user_id(self) -> Optional[str]:
+        """Detect a user ID for user-scoped item queries (required by Jellyfin 12+)."""
+        try:
+            response = self.session.get(f"{self.url}/Users", timeout=10)
+            response.raise_for_status()
+            users = response.json()
+            if users:
+                user_id = users[0]['Id']
+                logger.info(f"Using Jellyfin user '{users[0].get('Name')}' for item queries")
+                return user_id
+            logger.warning("No Jellyfin users found for item queries")
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to detect Jellyfin user ID: {e}")
+        return None
 
     def get_series_external_ids(self, series_id: str) -> Optional[Dict[str, str]]:
         """
@@ -34,7 +50,10 @@ class JellyfinService:
 
         try:
             # Query Jellyfin API for series details
-            url = f"{self.url}/Items/{series_id}"
+            if self.user_id:
+                url = f"{self.url}/Users/{self.user_id}/Items/{series_id}"
+            else:
+                url = f"{self.url}/Items/{series_id}"
             response = self.session.get(url, timeout=10)
             response.raise_for_status()
 
@@ -80,45 +99,44 @@ class JellyfinService:
             True if the item exists in the library, False otherwise
         """
         try:
-            # Try each external ID using Jellyfin's AnyProviderIdEquals parameter
-            for provider_id, provider_name in [(tvdb_id, 'Tvdb'), (imdb_id, 'Imdb'), (tmdb_id, 'Tmdb')]:
-                if not provider_id:
-                    continue
+            # Jellyfin 12+ silently ignores AnyProviderIdEquals, so search by
+            # name once and verify external IDs on each result instead.
+            known_ids = [(n, v) for n, v in
+                         [('Tvdb', tvdb_id), ('Imdb', imdb_id), ('Tmdb', tmdb_id)] if v]
+            if not known_ids:
+                logger.warning(f"No external IDs to verify for '{item_name}', assuming it still exists")
+                return True
 
-                params = {
-                    'Recursive': 'true',
-                    'AnyProviderIdEquals': provider_id,
-                    'Limit': 1,
-                    'Fields': 'ProviderIds',
-                }
+            params = {
+                'Recursive': 'true',
+                'SearchTerm': item_name,
+                'Limit': 10,
+                'Fields': 'ProviderIds',
+            }
 
-                # Set item type filter
-                if item_type:
-                    if item_type.lower() in ['episode', 'season', 'series', 'tv_show', 'tvshow']:
-                        params['IncludeItemTypes'] = 'Series'
-                    elif item_type.lower() == 'movie':
-                        params['IncludeItemTypes'] = 'Movie'
+            # Set item type filter
+            if item_type:
+                if item_type.lower() in ['episode', 'season', 'series', 'tv_show', 'tvshow']:
+                    params['IncludeItemTypes'] = 'Series'
+                elif item_type.lower() == 'movie':
+                    params['IncludeItemTypes'] = 'Movie'
 
-                response = self.session.get(
-                    f"{self.url}/Items",
-                    params=params,
-                    timeout=10
-                )
-                response.raise_for_status()
-                result = response.json()
-                items = result.get('Items', [])
+            response = self.session.get(
+                f"{self.url}/Items",
+                params=params,
+                timeout=10
+            )
+            response.raise_for_status()
+            result = response.json()
+            items = result.get('Items', [])
 
-                # Verify the returned item actually has the provider ID we searched for
-                if items:
-                    item = items[0]
-                    provider_ids = item.get('ProviderIds', {})
-
-                    # Check if the provider ID matches (case-insensitive)
+            # Verify a result actually carries one of the known provider IDs
+            for item in items:
+                provider_ids = item.get('ProviderIds', {})
+                for provider_name, provider_id in known_ids:
                     if provider_ids.get(provider_name) == provider_id or provider_ids.get(provider_name.lower()) == provider_id:
                         logger.info(f"Found item '{item.get('Name')}' in Jellyfin by {provider_name} ID: {provider_id}")
                         return True
-                    else:
-                        logger.debug(f"Item returned but provider ID doesn't match (expected {provider_name}={provider_id}, got {provider_ids})")
 
             logger.info(f"Item '{item_name}' not found in Jellyfin library (IDs: TVDB={tvdb_id}, IMDB={imdb_id}, TMDB={tmdb_id})")
             return False
