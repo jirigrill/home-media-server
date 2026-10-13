@@ -20,7 +20,7 @@ A comprehensive media server setup using Docker Compose, featuring Jellyfin as t
 - **Bazarr**: Subtitles automation and management
 
 ### Automation & Maintenance
-- **Huntarr**: Automated missing content discovery and quality upgrade tool
+- **Houndarr**: Polite missing/cutoff search scheduler for Sonarr/Radarr
 - **Cleanuparr**: Automated cleanup tool for managing disk space and stuck downloads
   - **QueueCleaner**: Removes stalled/failed downloads from Sonarr/Radarr queue
   - **DownloadCleaner**: Manages orphaned torrents in qBittorrent
@@ -66,7 +66,7 @@ Default ports (configurable in `.env`):
 - Sonarr: 8989
 - Radarr: 7878
 - Bazarr: 6767
-- Huntarr: 9705
+- Houndarr: 8877
 - Cleanuparr: 11011
 - Deleterr: 5000
 

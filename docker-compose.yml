@@ -250,6 +250,26 @@ services:
       - sonarr
       - radarr
 
+  houndarr:
+    image: ghcr.io/av1155/houndarr:latest
+    container_name: houndarr
+    hostname: houndarr
+    restart: unless-stopped
+    mem_limit: ${HOUNDARR_MEM_LIMIT}
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    networks:
+      - media_server
+    ports:
+      - ${HOUNDARR_PORT}:8877
+    volumes:
+      - houndarr_data:/data
+    depends_on:
+      - sonarr
+      - radarr
+
 volumes:
   qbittorrent_data:
   jellyfin_data:
@@ -260,6 +280,7 @@ volumes:
   bazarr_data:
   cleanuparr_data:
   deleterr_data:
+  houndarr_data:
   audiobookshelf_config:
   audiobookshelf_metadata:
 

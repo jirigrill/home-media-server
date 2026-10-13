@@ -125,7 +125,7 @@ backup: ## Backup configuration data
 		-v home-media-server_sonarr_data:/data/sonarr \
 		-v home-media-server_radarr_data:/data/radarr \
 		-v home-media-server_bazarr_data:/data/bazarr \
-		-v home-media-server_huntarr_data:/data/huntarr \
+		-v home-media-server_houndarr_data:/data/houndarr \
 		-v home-media-server_cleanuparr_data:/data/cleanuparr \
 		-v home-media-server_deleterr_data:/data/deleterr \
 		-v home-media-server_audiobookshelf_config:/data/abs_config \
@@ -156,7 +156,7 @@ restore-backup: ## Restore from specific backup file (use BACKUP=filename)
 			-v home-media-server_sonarr_data:/data/sonarr \
 			-v home-media-server_radarr_data:/data/radarr \
 			-v home-media-server_bazarr_data:/data/bazarr \
-			-v home-media-server_huntarr_data:/data/huntarr \
+			-v home-media-server_houndarr_data:/data/houndarr \
 			-v home-media-server_cleanuparr_data:/data/cleanuparr \
 			-v home-media-server_deleterr_data:/data/deleterr \
 		-v home-media-server_audiobookshelf_config:/data/abs_config \
@@ -172,7 +172,7 @@ restore-backup: ## Restore from specific backup file (use BACKUP=filename)
 health: ## Check health of all services
 	@echo "Service Health Check:"
 	@echo "==================="
-	@services="jellyfin qbittorrent flaresolverr prowlarr sonarr radarr bazarr huntarr cleanuparr deleterr audiobookshelf readmeabook"; \
+	@services="jellyfin qbittorrent flaresolverr prowlarr sonarr radarr bazarr houndarr cleanuparr deleterr audiobookshelf readmeabook"; \
 	for service in $$services; do \
 		echo -n "$$service: "; \
 		if docker-compose ps $$service | grep -q "Up"; then \
@@ -235,6 +235,6 @@ quick-start: setup up ## Complete setup and start services
 	@echo "  Sonarr:       http://localhost:$$(grep SONARR_PORT .env | cut -d= -f2)"
 	@echo "  Radarr:       http://localhost:$$(grep RADARR_PORT .env | cut -d= -f2)"
 	@echo "  Bazarr:       http://localhost:$$(grep BAZARR_PORT .env | cut -d= -f2)"
-	@echo "  Huntarr:      http://localhost:$$(grep HUNTARR_PORT .env | cut -d= -f2)"
+	@echo "  Houndarr:     http://localhost:$$(grep HOUNDARR_PORT .env | cut -d= -f2)"
 	@echo "  Cleanuparr:   http://localhost:$$(grep CLEANUPARR_PORT .env | cut -d= -f2)"
 	@echo "  Deleterr:     http://localhost:$$(grep DELETERR_PORT .env | cut -d= -f2)"
