@@ -290,6 +290,28 @@ services:
       - radarr
       - jellyfin
 
+
+  dashboard:
+    build: ./dashboard
+    container_name: dashboard
+    hostname: dashboard
+    restart: unless-stopped
+    mem_limit: ${DASHBOARD_MEM_LIMIT:-256m}
+    environment:
+      - JELLYFIN_URL=http://jellyfin:8096
+      - JELLYFIN_API_KEY=${JELLYFIN_API_KEY}
+      - AUDIOBOOKS_PATH_DASH=/audiobooks
+      - DASHBOARD_PORT=8080
+    networks:
+      - media_server
+    ports:
+      - ${DASHBOARD_PORT:-8100}:8080
+    volumes:
+      - ${AUDIOBOOKS_PATH}:/audiobooks:ro
+    depends_on:
+      - jellyfin
+
+
 volumes:
   qbittorrent_data:
   jellyfin_data:
