@@ -55,7 +55,6 @@ let s='';
 s+=card('CPU', d.cpu+'%', 'server load', d.cpu);
 s+=card('RAM', d.ram_used_gb+' GB', 'of '+d.ram_total_gb+' GB', d.ram_pct);
 s+=card('Server disk', d.server_disk_used_gb+' GB', 'of '+d.server_disk_total_gb+' GB free '+d.server_disk_free_gb, d.server_disk_pct);
-s+=card('Audiobooks', d.audiobooks_gb+' GB', 'used space', null);
 document.getElementById('server').innerHTML=s;
 let c='';
 for(const [k,v] of Object.entries(d.connected)){c+=card(k, v.used_gb+' GB', 'of '+v.total_gb+' GB (free '+v.free_gb+')', v.pct);}
