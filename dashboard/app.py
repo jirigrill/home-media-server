@@ -55,6 +55,7 @@ let s='';
 s+=card('CPU', d.cpu+'%', 'server load', d.cpu);
 s+=card('RAM', d.ram_used_gb+' GB', 'of '+d.ram_total_gb+' GB', d.ram_pct);
 s+=card('Server disk', d.server_disk_used_gb+' GB', 'of '+d.server_disk_total_gb+' GB free '+d.server_disk_free_gb, d.server_disk_pct);
+s+=card('Audiobooks', d.audiobooks_gb+' GB', 'used space', null);
 document.getElementById('server').innerHTML=s;
 let c='';
 for(const [k,v] of Object.entries(d.connected)){c+=card(k, v.used_gb+' GB', 'of '+v.total_gb+' GB (free '+v.free_gb+')', v.pct);}
@@ -68,7 +69,6 @@ load();setInterval(load,10000);
 """
 
 MOUNTS = {
-    "Audiobooks": "/audiobooks",
     "Movies": "/movies",
     "Shows": "/shows",
     "Kids shows": "/kids_shows",
@@ -78,6 +78,18 @@ MOUNTS = {
 @app.get("/")
 def index():
     return render_template_string(HTML)
+
+def folder_size_gb(path):
+    total = 0
+    root = Path(path)
+    if root.exists():
+        for p in root.rglob("*"):
+            if p.is_file():
+                try:
+                    total += p.stat().st_size
+                except OSError:
+                    pass
+    return round(total / 1e9, 2)
 
 @app.get("/api/stats")
 def stats():
@@ -106,6 +118,7 @@ def stats():
         "server_disk_free_gb": round(su.free / 1e9, 2),
         "server_disk_pct": round(100.0 * su.used / su.total, 1) if su.total else 0,
         "connected": connected,
+        "audiobooks_gb": folder_size_gb("/audiobooks"),
     })
 
 if __name__ == "__main__":
