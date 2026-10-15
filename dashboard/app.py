@@ -71,8 +71,7 @@ load();setInterval(load,10000);
 MOUNTS = {
     "Movies": "/movies",
     "Shows": "/shows",
-    "Kids shows": "/kids_shows",
-    "Kids movies": "/kids_movies",
+    "Kids": "/kids_shows",
 }
 
 @app.get("/")
