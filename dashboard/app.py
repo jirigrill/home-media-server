@@ -11,6 +11,10 @@ app = Flask(__name__)
 JELLYFIN_URL = os.getenv("JELLYFIN_URL", "http://jellyfin:8096").rstrip("/")
 JELLYFIN_API_KEY = os.getenv("JELLYFIN_API_KEY", "")
 AUDIOBOOKS_PATH = os.getenv("AUDIOBOOKS_PATH_DASH", "/audiobooks")
+MOVIES_PATH = os.getenv("MOVIES_PATH_DASH", "/movies")
+SHOWS_PATH = os.getenv("SHOWS_PATH_DASH", "/shows")
+KIDS_SHOWS_PATH = os.getenv("KIDS_SHOWS_PATH_DASH", "/kids_shows")
+KIDS_MOVIES_PATH = os.getenv("KIDS_MOVIES_PATH_DASH", "/kids_movies")
 
 HTML = """<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -38,9 +42,10 @@ g.innerHTML=
  card('RAM', d.ram_used_gb+' GB', 'of '+d.ram_total_gb+' GB used', d.ram_pct)+
  card('Disk', d.disk_used_gb+' GB', 'of '+d.disk_total_gb+' GB used', d.disk_pct)+
  card('Audiobooks', d.audiobooks_gb+' GB', 'library on disk', null)+
- card('Movies', d.movies, 'in Jellyfin', null)+
- card('Shows', d.shows, 'series in Jellyfin', null)+
- card('Episodes', d.episodes, 'episodes in Jellyfin', null);
+ card('Movies', d.movies_gb+' GB', 'used space', null)+
+ card('Shows', d.shows_gb+' GB', 'used space', null)+
+ card('Kids shows', d.kids_shows_gb+' GB', 'used space', null)+
+ card('Kids movies', d.kids_movies_gb+' GB', 'used space', null);
 document.getElementById('ts').textContent='Updated '+new Date().toLocaleTimeString();
 }
 load();setInterval(load,10000);
@@ -49,6 +54,19 @@ load();setInterval(load,10000);
 @app.get("/")
 def index():
     return render_template_string(HTML)
+
+
+def dir_size_gb(path):
+    total = 0
+    root = Path(path)
+    if root.exists():
+        for p in root.rglob("*"):
+            if p.is_file():
+                try:
+                    total += p.stat().st_size
+                except OSError:
+                    pass
+    return round(total / 1e9, 2)
 
 @app.get("/api/stats")
 def stats():
@@ -71,15 +89,6 @@ def stats():
                         pass
     except Exception:
         pass
-    counts = {}
-    if JELLYFIN_API_KEY:
-        try:
-            r = requests.get(f"{JELLYFIN_URL}/Items/Counts",
-                             headers={"X-Emby-Token": JELLYFIN_API_KEY}, timeout=5)
-            r.raise_for_status()
-            counts = r.json()
-        except Exception:
-            counts = {}
     return jsonify({
         "cpu": round(cpu, 1),
         "ram_used_gb": round(mem.used / 1e9, 2),
@@ -89,9 +98,10 @@ def stats():
         "disk_total_gb": round(du.total / 1e9, 2),
         "disk_pct": round(100.0 * du.used / du.total, 1) if du.total else 0,
         "audiobooks_gb": round(audiobooks_bytes / 1e9, 2),
-        "movies": counts.get("MovieCount", 0),
-        "shows": counts.get("SeriesCount", 0),
-        "episodes": counts.get("EpisodeCount", 0),
+        "movies_gb": dir_size_gb(MOVIES_PATH),
+        "shows_gb": dir_size_gb(SHOWS_PATH),
+        "kids_shows_gb": dir_size_gb(KIDS_SHOWS_PATH),
+        "kids_movies_gb": dir_size_gb(KIDS_MOVIES_PATH),
     })
 
 if __name__ == "__main__":
