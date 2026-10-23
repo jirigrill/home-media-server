@@ -11,6 +11,7 @@ A comprehensive media server setup using Docker Compose, featuring Jellyfin as t
 - **QBittorrent**: Torrent client with web interface
 - **Prowlarr**: Indexer manager/proxy for coordinating searches across torrent sites
 - **FlareSolverr**: Proxy server to bypass Cloudflare and DDoS-GUARD protection on indexers
+- **AudioBookBay**: Audiobook tracker with no working Prowlarr definition, exposed through the custom `abb-torznab` bridge (see below)
 
 ### Content Management (*arr Suite)
 - **Sonarr**: TV shows automation, monitoring, and library management
@@ -69,6 +70,7 @@ Default ports (configurable in `.env`):
 - Houndarr: 8877
 - Cleanuparr: 11011
 - Deleterr: 5000
+- abb-torznab: 8095 (bound to 127.0.0.1, Torznab API for Prowlarr)
 
 ## Configuration
 
@@ -129,6 +131,12 @@ Each service requires initial configuration through their respective web interfa
    - Create user accounts
    - Set up webhook for Deleterr integration
 
+9. **abb-torznab**
+   - Has no web interface; it is a Torznab endpoint for Prowlarr
+   - In Prowlarr: Indexers → Add → Torznab, base URL `http://abb-torznab:8088`, API path `/api`, API key = `ABB_TORZNAB_API_KEY` from `.env`
+   - Enable `Prefer magnet URL` so grabs go straight to qBittorrent
+   - See `abb-torznab/README.md` for details and troubleshooting
+
 ## Special Features
 
 ### Sonarr & Radarr - Automatic ffmpeg Installation
@@ -179,6 +187,63 @@ Deleterr automatically manages content removal when you delete items from Jellyf
 - If series is continuing or has other episodes → Keeps series in Sonarr
 
 **Webhook Configuration**: Point Jellyfin's ItemRemoved webhook to `http://deleterr:5000/delete`
+
+### abb-torznab - AudioBookBay Torznab Bridge
+
+AudioBookBay has no maintained Prowlarr/Jackett definition, and its `.torrent`
+endpoint requires a member login. The public search and detail pages are still
+readable, so `abb-torznab` scrapes them and exposes the results over Torznab
+with magnet links built from the info hash published on each detail page.
+
+That makes ABB usable by Prowlarr (and therefore ReadMeABook, Sonarr, or
+Radarr) without an account.
+
+**Endpoints**
+
+| Path | Purpose |
+| --- | --- |
+| `GET /api?t=caps` | Torznab capabilities (Audio/Audiobook, 3030) |
+| `GET /api?t=search&q=...` | Search; returns magnets with `infohash` |
+| `GET /healthz` | Liveness probe |
+
+**How it works**
+
+- Scrapes `/?s=<query>` and each result's detail page for the 40-hex info hash and trackers.
+- Caches searches for 10 minutes and detail pages for 6 hours to stay polite.
+- Falls back to FlareSolverr when Cloudflare challenges a request.
+- Strips stopwords from queries: ABB's search is very fuzzy and a leading "The" returns unrelated books.
+- Requires ≥80% of query tokens to appear in a result title, which rejects lookalike books.
+- Prefers English results when a translated edition also matches.
+- Serves the front page for query-less searches, because Prowlarr validates a new indexer that way.
+
+**Configuration** (`.env`)
+
+| Variable | Default | Notes |
+| --- | --- | --- |
+| `ABB_TORZNAB_PORT` | `8095` | Host port, bound to 127.0.0.1 only |
+| `ABB_TORZNAB_API_KEY` | – | Shared secret Prowlarr sends as `apikey` |
+| `ABB_BASE` | `https://audiobookbay.lu` | Mirror to scrape |
+| `ABB_ASSUMED_SEEDERS` | `5` | ABB publishes no seeder counts |
+| `ABB_TORZNAB_MEM_LIMIT` | `128m` | Container memory cap |
+
+**Known limitations**
+
+- **Seeder counts are invented.** ABB does not expose them, so every result
+  reports `ABB_ASSUMED_SEEDERS`. A dead torrent therefore looks healthy to the
+  download client and can stall at 0%.
+- **Search is fuzzy.** The bridge filters aggressively, but a very generic title
+  can still match the wrong edition.
+- **No releases exist for many titles.** They will sit in `awaiting_search` and
+  be retried hourly, which is expected behavior.
+
+**Verifying it**
+
+```bash
+curl -s "http://127.0.0.1:8095/healthz"
+curl -s "http://127.0.0.1:8095/api?t=caps&apikey=$ABB_TORZNAB_API_KEY"
+curl -s "http://127.0.0.1:8095/api?t=search&q=the+pragmatic+programmer&apikey=$ABB_TORZNAB_API_KEY"
+docker logs -f abb-torznab
+```
 
 ### Updating Services
 
@@ -231,6 +296,13 @@ make update
 3. **Resource Issues**
    - Monitor container memory usage
    - Adjust memory limits in `.env` (see `.env.example` for recommended values)
+
+4. **Audiobook searches time out**
+   - FlareSolverr handles one challenge at a time and a solve can take 30-100s.
+     Indexers behind it blow any client timeout when several searches run at once.
+   - Keep FlareSolverr-tagged indexers out of *audiobook* categories in the
+     client's indexer settings (they can stay enabled for other media types).
+   - Check `docker logs abb-torznab` when AudioBookBay itself misbehaves.
 
 ## Security Notes
 

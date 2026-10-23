@@ -315,6 +315,24 @@ services:
       - ${KIDS_SHOWS_PATH}:/kids_shows:ro
       - ${KIDS_MOVIES_PATH}:/kids_movies:ro
 
+  abb-torznab:
+    build: ./abb-torznab
+    container_name: abb-torznab
+    hostname: abb-torznab
+    restart: unless-stopped
+    mem_limit: ${ABB_TORZNAB_MEM_LIMIT:-128m}
+    environment:
+      - TZ=${TZ}
+      - ABB_BASE=${ABB_BASE:-https://audiobookbay.lu}
+      - ABB_API_KEY=${ABB_TORZNAB_API_KEY}
+      - ABB_ASSUMED_SEEDERS=${ABB_ASSUMED_SEEDERS:-5}
+      - FLARESOLVERR_URL=http://flaresolverr:8191/v1
+    networks:
+      - media_server
+    ports:
+      - 127.0.0.1:${ABB_TORZNAB_PORT:-8095}:8088
+    depends_on:
+      - flaresolverr
 
 volumes:
   qbittorrent_data:
