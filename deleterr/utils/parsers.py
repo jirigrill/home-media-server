@@ -221,6 +221,132 @@ class MediaParser:
             return None
 
     @staticmethod
+    def enrich_from_jellyfin_item(webhook_data: dict, item_data: dict) -> Optional[MediaItem]:
+        """Rebuild a MediaItem from Jellyfin item metadata.
+
+        Jellyfin renders the webhook template from the notification item's
+        *current* metadata. When Media Cleaner removes a whole show/season,
+        the child ``ItemDeleted`` notifications can be rendered after the
+        parent is already purged, so ``SeriesName``/``SeasonNumber``/
+        ``EpisodeNumber`` come through empty and only ``Name`` survives.
+
+        This rebuilds the missing context from the item as Jellyfin knows it,
+        using ``ParentIndexNumber`` (season) and ``IndexNumber`` (episode).
+
+        Args:
+            webhook_data: Original webhook payload (fallback values)
+            item_data: Raw item dict returned by the Jellyfin API
+
+        Returns:
+            A MediaItem, or None if the item cannot be identified
+        """
+        if not item_data:
+            return None
+
+        item_type = (item_data.get('Type') or webhook_data.get('ItemType') or '').lower()
+        name = html.unescape(item_data.get('Name') or webhook_data.get('Name') or '')
+
+        provider_ids = item_data.get('ProviderIds') or {}
+        imdb_id = provider_ids.get('Imdb') or webhook_data.get('Provider_imdb')
+        tvdb_id = provider_ids.get('Tvdb') or webhook_data.get('Provider_tvdb')
+        tmdb_id = provider_ids.get('Tmdb') or webhook_data.get('Provider_tmdb')
+
+        item_id = item_data.get('Id') or webhook_data.get('ItemId')
+        series_id = item_data.get('SeriesId') or webhook_data.get('SeriesId')
+
+        try:
+            if item_type == 'episode':
+                series_name = item_data.get('SeriesName') or webhook_data.get('SeriesName') or ''
+                season_number = item_data.get('ParentIndexNumber')
+                episode_number = item_data.get('IndexNumber')
+                if not series_name or season_number is None or episode_number is None:
+                    logger.warning(
+                        f"Jellyfin item {item_id} is an episode but lacks "
+                        f"series/season/episode context (SeriesName={series_name!r}, "
+                        f"ParentIndexNumber={season_number!r}, IndexNumber={episode_number!r})"
+                    )
+                    return None
+                logger.info(
+                    f"Recovered episode context from Jellyfin: "
+                    f"{series_name} S{season_number:02d}E{episode_number:02d} - {name}"
+                )
+                return MediaItem(
+                    media_type=MediaType.EPISODE,
+                    title=html.unescape(series_name),
+                    season=int(season_number),
+                    episode=int(episode_number),
+                    imdb_id=imdb_id,
+                    tvdb_id=tvdb_id,
+                    tmdb_id=tmdb_id,
+                    item_id=item_id,
+                    series_id=series_id,
+                )
+
+            if item_type == 'season':
+                series_name = item_data.get('SeriesName') or webhook_data.get('SeriesName') or ''
+                season_number = item_data.get('IndexNumber')
+                if not series_name or season_number is None:
+                    logger.warning(
+                        f"Jellyfin item {item_id} is a season but lacks "
+                        f"series/season context (SeriesName={series_name!r}, "
+                        f"IndexNumber={season_number!r})"
+                    )
+                    return None
+                logger.info(
+                    f"Recovered season context from Jellyfin: "
+                    f"{series_name} Season {season_number}"
+                )
+                return MediaItem(
+                    media_type=MediaType.SEASON,
+                    title=html.unescape(series_name),
+                    season=int(season_number),
+                    imdb_id=imdb_id,
+                    tvdb_id=tvdb_id,
+                    tmdb_id=tmdb_id,
+                    item_id=item_id,
+                    series_id=series_id,
+                )
+
+            if item_type == 'series':
+                if not name:
+                    return None
+                return MediaItem(
+                    media_type=MediaType.TV_SHOW,
+                    title=name,
+                    imdb_id=imdb_id,
+                    tvdb_id=tvdb_id,
+                    tmdb_id=tmdb_id,
+                    item_id=item_id,
+                )
+
+            if item_type == 'movie':
+                if not name:
+                    return None
+                year = item_data.get('ProductionYear') or webhook_data.get('Year')
+                parsed_year = None
+                if year:
+                    try:
+                        parsed_year = int(year)
+                    except (ValueError, TypeError):
+                        parsed_year = None
+                return MediaItem(
+                    media_type=MediaType.MOVIE,
+                    title=name,
+                    year=parsed_year,
+                    imdb_id=imdb_id,
+                    tvdb_id=tvdb_id,
+                    tmdb_id=tmdb_id,
+                    item_id=item_id,
+                )
+
+            logger.warning(f"Cannot rebuild unsupported Jellyfin item type: {item_type}")
+            return None
+
+        except Exception as e:
+            logger.error(f"Error rebuilding MediaItem from Jellyfin item {item_id}: {e}")
+            return None
+
+    @staticmethod
     def _parse_episode_from_name(item_name: str) -> Optional[MediaItem]:
         """Parse episode information from item name using regex patterns"""
         # Decode HTML entities first

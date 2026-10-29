@@ -47,10 +47,18 @@ class SonarrService(ArrService):
             )
         return series_id
 
-    def unmonitor_item(self, item: MediaItem) -> bool:
-        """Delete episode/season/TV show and clean up as needed"""
+    def unmonitor_item(self, item: MediaItem, series_exists_in_jellyfin: Optional[bool] = None) -> bool:
+        """Delete episode/season/TV show and clean up as needed
+
+        Args:
+            item: MediaItem to remove
+            series_exists_in_jellyfin: For TV shows, whether the series still
+                exists in Jellyfin. Used to distinguish "user deleted some
+                seasons of a continuing show" (keep) from "user deleted the
+                whole show" (delete).
+        """
         if item.media_type == MediaType.TV_SHOW:
-            return self._delete_tv_show(item)
+            return self._delete_tv_show(item, series_exists_in_jellyfin=series_exists_in_jellyfin)
         elif item.media_type == MediaType.SEASON:
             return self._delete_season(item)
         elif item.media_type == MediaType.EPISODE:
@@ -270,8 +278,14 @@ class SonarrService(ArrService):
             logger.error(f"Error deleting TV show '{title}' (ID: {series_id}): {e}")
             return False
 
-    def _delete_tv_show(self, item: MediaItem) -> bool:
-        """Delete entire TV show from Sonarr (only if ended, preserve continuing shows)"""
+    def _delete_tv_show(self, item: MediaItem, series_exists_in_jellyfin: Optional[bool] = None) -> bool:
+        """Delete entire TV show from Sonarr.
+
+        Continuing shows are normally preserved: the user may have deleted old
+        seasons to free space while still following the show. That protection
+        only makes sense while the show is still in Jellyfin. When the whole
+        show is gone from Jellyfin, it must be deleted from Sonarr too.
+        """
         try:
             # Find series using external IDs (TVDB, IMDB, TMDB)
             # Don't log error if not found - handle it gracefully below
@@ -291,15 +305,23 @@ class SonarrService(ArrService):
             series_data = series_response.json()
             status = series_data.get('status', '').lower()
 
-            # IMPORTANT: Only delete series if it's ended
-            # Continuing shows should be kept in Sonarr even if seasons are deleted from Jellyfin
-            # This prevents removing ongoing shows when user deletes old seasons to save space
-            if status == 'continuing':
-                logger.info(f"[SKIP] Series '{item.title}' has status 'continuing' - keeping in Sonarr (user likely deleted old seasons)")
+            # IMPORTANT: Only preserve continuing shows while they still exist in
+            # Jellyfin. If the whole show is gone from Jellyfin, delete it.
+            if status == 'continuing' and series_exists_in_jellyfin is not False:
+                logger.info(
+                    f"[SKIP] Series '{item.title}' has status 'continuing' and still "
+                    f"exists in Jellyfin - keeping in Sonarr (user likely deleted old seasons)"
+                )
                 return True  # Return success since we're preserving the series intentionally
 
-            # Series is ended, safe to delete
-            logger.info(f"Series '{item.title}' has status '{status}' - proceeding with deletion")
+            if status == 'continuing':
+                logger.info(
+                    f"Series '{item.title}' has status 'continuing' but no longer exists "
+                    f"in Jellyfin - proceeding with deletion"
+                )
+            else:
+                logger.info(f"Series '{item.title}' has status '{status}' - proceeding with deletion")
+
             return self._delete_tv_show_by_id(series_id, item.title)
 
         except Exception as e:

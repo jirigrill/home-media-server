@@ -34,6 +34,42 @@ class JellyfinService:
             logger.error(f"Failed to detect Jellyfin user ID: {e}")
         return None
 
+    def get_item(self, item_id: str) -> Optional[Dict]:
+        """
+        Fetch a single item's raw JSON from Jellyfin by item ID.
+
+        Used to rebuild the context (series name, season/episode numbers,
+        provider IDs) of a deletion webhook whose payload was rendered after
+        the parent items were already purged from the library.
+
+        Args:
+            item_id: Jellyfin item ID
+
+        Returns:
+            The item dict as returned by the API, or None if the item cannot
+            be fetched (which is expected once it has really been deleted).
+        """
+        if not item_id:
+            return None
+
+        try:
+            if self.user_id:
+                url = f"{self.url}/Users/{self.user_id}/Items/{item_id}"
+            else:
+                url = f"{self.url}/Items/{item_id}"
+            response = self.session.get(url, timeout=10)
+            if response.status_code == 404:
+                logger.debug(f"Jellyfin item {item_id} no longer exists (404)")
+                return None
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            logger.debug(f"Could not fetch Jellyfin item {item_id}: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Error processing Jellyfin item {item_id}: {e}")
+            return None
+
     def get_series_external_ids(self, series_id: str) -> Optional[Dict[str, str]]:
         """
         Get series-level external IDs (TVDB, IMDB, TMDB) from Jellyfin.

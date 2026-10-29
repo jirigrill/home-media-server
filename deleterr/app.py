@@ -2,6 +2,7 @@
 Deleterr Flask application
 """
 
+import json
 import logging
 import os
 from datetime import datetime
@@ -116,14 +117,49 @@ except Exception as e:
     exit(1)
 
 
+def _parse_webhook_body():
+    """Parse the incoming webhook body, tolerating Jellyfin's imperfect JSON.
+
+    Jellyfin renders its webhook template from item metadata, so a template
+    with an unquoted value (e.g. ``"Year": {{Year}}``) produces invalid JSON
+    when that field is empty. Flask's ``request.json`` raises in that case and
+    the payload is lost, so parse the raw body ourselves and log what actually
+    arrived when it cannot be decoded.
+
+    Returns:
+        ``(data, error)`` where ``data`` is a dict on success and ``error`` is
+        a short human readable reason on failure.
+    """
+    raw = request.get_data(cache=True)
+    if not raw:
+        return None, "empty request body"
+
+    try:
+        data = json.loads(raw)
+    except (ValueError, UnicodeDecodeError) as e:
+        preview = raw[:500].decode('utf-8', errors='replace')
+        logger.error(
+            f"Could not decode webhook body as JSON ({e}); "
+            f"content-type={request.headers.get('Content-Type')!r}, "
+            f"length={len(raw)}, body[:500]={preview!r}"
+        )
+        return None, "invalid JSON body"
+
+    if not isinstance(data, dict):
+        logger.error(f"Webhook body was JSON but not an object: {type(data).__name__}")
+        return None, "webhook body was not a JSON object"
+
+    return data, None
+
+
 @app.route('/delete', methods=['POST'])
 def handle_deletion():
     """Handle Jellyfin webhook for item removal"""
     try:
-        data = request.json
-        if not data:
-            logger.warning("Received empty webhook data")
-            return jsonify({'status': 'error', 'message': 'Empty data'}), 400
+        data, parse_error = _parse_webhook_body()
+        if parse_error:
+            logger.warning(f"Rejecting webhook: {parse_error}")
+            return jsonify({'status': 'error', 'message': parse_error}), 400
 
         # Extract detailed information for logging
         item_type = data.get('ItemType', 'Unknown')
@@ -153,10 +189,19 @@ def handle_deletion():
             logger.warning(f"Ignoring non-removal webhook - NotificationType: {notification_type}")
             return jsonify({'status': 'ignored', 'message': f'Not an item removal event (got: {notification_type})'})
 
-        # Process the removal
-        success = webhook_processor.process_removal(data)
+        # Process the removal. The processor returns a tri-state result:
+        #   True  -> item handled (unmonitored/deleted, or intentionally kept)
+        #   False -> item identified but the *arr call failed
+        #   None  -> item could not be identified at all (nothing to act on)
+        result = webhook_processor.process_removal(data)
 
-        if success:
+        if result is None:
+            logger.warning(f"[SKIP] Could not identify item, nothing to unmonitor: {detail}")
+            return jsonify({
+                'status': 'ignored',
+                'message': f'Could not identify item: {item_name}'
+            })
+        if result:
             logger.info(f"[OK] Successfully processed removal for: {detail}")
             return jsonify({
                 'status': 'success',
