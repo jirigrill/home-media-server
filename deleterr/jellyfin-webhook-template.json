@@ -1,0 +1,15 @@
+{
+  "Timestamp": "{{Timestamp}}",
+  "Year": "{{Year}}",
+  "Name": "{{Name}}",
+  "ItemId": "{{ItemId}}",
+  "ItemType": "{{ItemType}}",
+  "NotificationType": "{{NotificationType}}",
+  "SeriesName": "{{SeriesName}}",
+  "SeriesId": "{{SeriesId}}",
+  "SeasonNumber": "{{SeasonNumber}}",
+  "EpisodeNumber": "{{EpisodeNumber}}",
+  "Provider_imdb": "{{Provider_imdb}}",
+  "Provider_tvdb": "{{Provider_tvdb}}",
+  "Provider_tmdb": "{{Provider_tmdb}}"
+}
