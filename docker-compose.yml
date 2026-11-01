@@ -186,6 +186,9 @@ services:
       - UMASK=${UMASK:-022}
       - SONARR_API_KEY=${SONARR_API_KEY}
       - RADARR_API_KEY=${RADARR_API_KEY}
+      # subtitle sync: Bazarr shells out to ffsubsync, which ships in neither image
+      - DOCKER_MODS=linuxserver/mods:universal-package-install
+      - INSTALL_PIP_PACKAGES=ffsubsync
     mem_limit: ${BAZARR_MEM_LIMIT}
     networks:
       - media_server
