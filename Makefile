@@ -1,7 +1,7 @@
 # Home Media Server Makefile
 # Provides convenient commands for managing the Docker Compose stack
 
-.PHONY: help up down restart logs status pull build clean network backup restore dev test lint format update
+.PHONY: help up down restart logs status pull build clean network backup restore dev test lint format update install-flaresolverr-guard
 
 # Default target
 help: ## Show this help message
@@ -59,6 +59,11 @@ build: ## Build custom services (deleterr)
 update: pull ## Update all services (pull + restart)
 	@echo "Updating and restarting services..."
 	docker-compose up -d
+
+install-flaresolverr-guard: ## Install host cron guard that restarts FlareSolverr when a Chromium process leaks
+	@echo "Installing FlareSolverr leak guard..."
+	sudo install -m 755 scripts/flaresolverr-guard.sh /usr/local/sbin/flaresolverr-guard.sh
+	sudo install -m 644 scripts/flaresolverr-guard.cron /etc/cron.d/flaresolverr-guard
 
 # Development
 dev: ## Start stack in development mode with build

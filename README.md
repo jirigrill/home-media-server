@@ -283,6 +283,21 @@ docker compose pull && docker compose up -d
 make update
 ```
 
+### FlareSolverr leak guard
+
+FlareSolverr can leave Chromium processes behind after failed requests. A leaked
+browser keeps burning CPU until the container is restarted, which on a small
+host shows up as the fan spinning up for no apparent reason.
+`scripts/flaresolverr-guard.sh` restarts the container when a browser process
+outlives any plausible request (10 minutes). Install it on the host with:
+
+```bash
+make install-flaresolverr-guard
+```
+
+This installs the script to `/usr/local/sbin` and a cron job in `/etc/cron.d`
+that runs it every 10 minutes.
+
 ## Troubleshooting
 
 1. **Permission Issues**
